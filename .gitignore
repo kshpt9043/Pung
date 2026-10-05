@@ -1,0 +1,30 @@
+# Unreal generated
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+Build/
+Plugins/**/Binaries/
+Plugins/**/Intermediate/
+
+# IDE / project files (regenerated)
+.vs/
+.vscode/
+.idea/
+*.sln
+*.slnx
+*.suo
+*.sdf
+*.VC.db
+*.VC.opendb
+*.code-workspace
+
+# Compiled
+*.pdb
+*.dll
+*.exe
+*.lib
+
+# OS
+Thumbs.db
+.DS_Store
