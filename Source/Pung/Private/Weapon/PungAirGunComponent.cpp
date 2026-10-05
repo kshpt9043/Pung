@@ -69,7 +69,7 @@ void UPungAirGunComponent::Fire()
 
 	// 클라이언트와 서버의 시간 차이 때문에 정상적인 발사가 거부되지 않도록 약간 여유를 둔다
 	const double Now = World->GetTimeSeconds();
-	if (!Character || Charges <= 0 || Now - LastFireTime < Data->FireInterval * 0.9)
+	if (!Character || !Character->CanAct() || Charges <= 0 || Now - LastFireTime < Data->FireInterval * 0.9)
 	{
 		return;
 	}

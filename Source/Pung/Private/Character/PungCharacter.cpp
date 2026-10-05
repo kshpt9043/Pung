@@ -6,6 +6,8 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "EnhancedInputComponent.h"
+#include "Game/PungGameMode.h"
+#include "Game/PungGameState.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "InputActionValue.h"
 #include "Net/UnrealNetwork.h"
@@ -60,6 +62,26 @@ void APungCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLi
 	DOREPLIFETIME(APungCharacter, bInvulnerable);
 }
 
+void APungCharacter::FellOutOfWorld(const UDamageType& DamageType)
+{
+	if (HasAuthority())
+	{
+		if (APungGameMode* GameMode = GetWorld()->GetAuthGameMode<APungGameMode>())
+		{
+			GameMode->HandleCharacterFell(this);
+		}
+	}
+
+	Super::FellOutOfWorld(DamageType);
+}
+
+bool APungCharacter::CanAct() const
+{
+	// 게임 상태가 Pung 것이 아니면 (테스트 맵 등) 제한하지 않는다
+	const APungGameState* PungGameState = GetWorld()->GetGameState<APungGameState>();
+	return !PungGameState || PungGameState->IsMatchInProgress();
+}
+
 void APungCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent);
@@ -91,7 +113,7 @@ void APungCharacter::LookInput(const FInputActionValue& Value)
 
 void APungCharacter::DoMove(float Right, float Forward)
 {
-	if (GetController())
+	if (GetController() && CanAct())
 	{
 		AddMovementInput(GetActorRightVector(), Right);
 		AddMovementInput(GetActorForwardVector(), Forward);
@@ -109,7 +131,10 @@ void APungCharacter::DoAim(float Yaw, float Pitch)
 
 void APungCharacter::DoJumpStart()
 {
-	Jump();
+	if (CanAct())
+	{
+		Jump();
+	}
 }
 
 void APungCharacter::DoJumpEnd()
@@ -119,7 +144,10 @@ void APungCharacter::DoJumpEnd()
 
 void APungCharacter::DoFire()
 {
-	AirGun->RequestFire();
+	if (CanAct())
+	{
+		AirGun->RequestFire();
+	}
 }
 
 void APungCharacter::ApplyKnockback(const FVector& Knockback, AController* InstigatorController)

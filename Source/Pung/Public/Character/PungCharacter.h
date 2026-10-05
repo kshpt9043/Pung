@@ -60,6 +60,13 @@ public:
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
+	/** Kill Z 아래로 떨어지거나 Kill Z 볼륨에 들어가면 호출된다. 게임 모드에 사망을 알린 뒤 제거된다. */
+	virtual void FellOutOfWorld(const UDamageType& DamageType) override;
+
+	/** 매치 진행 중일 때만 이동/사격할 수 있다 */
+	UFUNCTION(BlueprintPure, Category="Pung")
+	bool CanAct() const;
+
 	/** 서버 전용. 현재 속도에 넉백을 더하고, 누가 밀었는지 기록한다. */
 	void ApplyKnockback(const FVector& Knockback, AController* InstigatorController);
 
