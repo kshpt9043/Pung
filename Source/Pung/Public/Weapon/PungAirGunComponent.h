@@ -7,6 +7,7 @@
 #include "PungAirGunComponent.generated.h"
 
 class APungAirProjectile;
+class APungCharacter;
 class UPungAirGunData;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FPungAirGunFiredSignature);
@@ -14,6 +15,14 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FPungAirGunChargesChangedSignature,
 
 /**
  *  캐릭터에 내장된 공기총 (GDD §3).
+ *
+ *  사격은 즉발 판정이다 (웹 원작 방식):
+ *  쏘는 순간 착탄 지점을 정하고 넉백까지 바로 적용한다. 날아가는 탄은 연출일 뿐이다.
+ *  착탄 지점은 다음 중 가장 가까운 곳이다.
+ *    - 조준선이 처음 닿는 지형/캐릭터
+ *    - 조준선이 다른 플레이어 몸 근처를 지나가는 지점 (근접 신관)
+ *    - 최대 사거리 끝 (공중 폭발)
+ *
  *  발사와 충전은 서버 권한이며, 소유 클라이언트는 발사를 "요청"만 한다.
  */
 UCLASS(ClassGroup=(Pung), meta=(BlueprintSpawnableComponent))
@@ -54,8 +63,18 @@ protected:
 	UFUNCTION(Server, Reliable)
 	void ServerFire();
 
-	/** 서버: 탄 하나를 소모하고 투사체를 생성한다 */
+	/** 서버: 탄 하나를 소모하고 착탄 지점을 정해 폭발시킨다 */
 	void Fire();
+
+	/** 서버: 눈 위치에서 조준 방향으로 착탄 지점을 찾는다 */
+	FVector FindBurstLocation(const APungCharacter* Shooter, const FVector& EyeLocation, const FVector& AimDirection, float& OutDistance) const;
+
+	/** 서버: Origin 에서 폭발해 범위 안의 캐릭터를 밀어낸다 */
+	void ApplyBlast(const FVector& Origin, APungCharacter* Shooter) const;
+
+	/** 모든 머신에 연출용 탄을 띄운다 */
+	UFUNCTION(NetMulticast, Unreliable)
+	void MulticastShotFired(FVector_NetQuantize Start, FVector_NetQuantize End);
 
 	/** 서버: 탄 하나를 충전한다 */
 	void Recharge();
@@ -69,13 +88,13 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Air Gun")
 	TObjectPtr<UPungAirGunData> GunData;
 
-	/** 생성할 투사체 클래스. 외형은 블루프린트 자식 클래스에서 꾸민다. */
+	/** 연출용 탄 클래스. 외형은 블루프린트 자식 클래스에서 꾸민다. */
 	UPROPERTY(EditAnywhere, Category="Air Gun")
 	TSubclassOf<APungAirProjectile> ProjectileClass;
 
-	/** 투사체가 생성되는 위치 (눈 앞 거리) */
+	/** 연출용 탄이 나타나는 위치 (눈 앞 거리). 착탄 지점이 더 가까우면 그 중간에서 나타난다. */
 	UPROPERTY(EditAnywhere, Category="Air Gun", meta=(ClampMin="0", Units="cm"))
-	float MuzzleOffset = 50.f;
+	float MuzzleOffset = 60.f;
 
 	UPROPERTY(ReplicatedUsing=OnRep_Charges)
 	int32 Charges = 0;

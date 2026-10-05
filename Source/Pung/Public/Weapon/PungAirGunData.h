@@ -18,36 +18,40 @@ class PUNG_API UPungAirGunData : public UDataAsset
 
 public:
 
-	/** 투사체 비행 속도 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Projectile", meta=(ClampMin="100", Units="cm/s"))
-	float ProjectileSpeed = 2500.f;
-
-	/** 아무것에도 닿지 않으면 이 시간 뒤에 사라진다 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Projectile", meta=(ClampMin="0.1", Units="s"))
-	float ProjectileLifetime = 3.f;
+	/** 최대 사거리. 이 안에서 아무것도 맞지 않으면 사거리 끝 공중에서 터진다. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Shot", meta=(ClampMin="100", Units="cm"))
+	float MaxRange = 4000.f;
 
 	/**
-	 *  조준한 곳이 이 거리 안이면 날아가지 않고 그 자리에서 바로 터진다.
-	 *  달리면서 발밑을 쏴도 비행 시간 때문에 폭발 위치가 어긋나지 않게 하기 위함.
+	 *  근접 신관 반경. 사격 경로가 다른 플레이어 몸 중심에서 이 거리 안을 지나가면
+	 *  지형까지 가지 않고 그 지점에서 터진다. 사람을 스치듯 조준해도 맞도록 하기 위함.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Projectile", meta=(ClampMin="0", Units="cm"))
-	float InstantBurstRange = 250.f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Shot", meta=(ClampMin="0", Units="cm"))
+	float ProximityFuseRadius = 130.f;
 
-	/** 폭발 지점에서 캡슐 표면까지 이 거리 안에 있는 캐릭터가 밀려난다 */
+	/** 연출용 탄이 착탄 지점까지 날아가는 속도. 판정에는 영향이 없다. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Shot", meta=(ClampMin="100", Units="cm/s"))
+	float VisualProjectileSpeed = 2500.f;
+
+	/** 기준 폭발 반경. 자기 넉백(로켓 점프)에 그대로 쓰인다. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Blast", meta=(ClampMin="1", Units="cm"))
 	float BlastRadius = 300.f;
 
-	/** 폭발 중심에서 받는 속도 변화량 */
+	/** 기준 넉백 세기 (폭발 중심에서 받는 속도 변화량). 자기 넉백에 그대로 쓰인다. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Blast", meta=(ClampMin="0", Units="cm/s"))
 	float KnockbackStrength = 1500.f;
 
-	/** 폭발 반경 끝에서 받는 힘의 비율 (KnockbackStrength 대비) */
+	/** 폭발 반경 끝에서 받는 힘의 비율 (중심 힘 대비) */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Blast", meta=(ClampMin="0", ClampMax="1"))
 	float EdgeStrengthScale = 0.25f;
 
-	/** 자기 폭발에 휘말렸을 때 적용되는 배율 (로켓 점프 높이 조절) */
+	/** 남을 밀 때 기준 반경에 곱하는 배율. 조준을 관대하게 하려면 1보다 크게. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Blast", meta=(ClampMin="0"))
-	float SelfKnockbackScale = 1.f;
+	float OtherBlastRadiusScale = 1.6f;
+
+	/** 남을 밀 때 기준 세기에 곱하는 배율 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Blast", meta=(ClampMin="0"))
+	float OtherKnockbackScale = 0.82f;
 
 	/** 완충 시 저장되는 발사 횟수 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ammo", meta=(ClampMin="1"))

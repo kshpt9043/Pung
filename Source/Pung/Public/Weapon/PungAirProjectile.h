@@ -6,80 +6,46 @@
 #include "GameFramework/Actor.h"
 #include "PungAirProjectile.generated.h"
 
-class USphereComponent;
-class UProjectileMovementComponent;
-class UPungAirGunData;
-
 /**
- *  공기총 투사체. 무언가에 닿는 순간 터지고, 범위 안의 모든 캐릭터를
- *  폭발 지점 반대 방향으로 밀어낸다 (GDD §3.1).
- *  충돌 판정과 넉백은 서버에서만 처리한다.
+ *  공기탄 연출용 액터. 판정은 발사 순간 공기총이 이미 끝냈고,
+ *  이 액터는 총구에서 착탄 지점까지 날아가 폭발 이펙트만 보여준다.
+ *  네트워크로 복제하지 않고 각 머신에서 따로 생성된다.
+ *  외형(메시, 이펙트)은 블루프린트 자식 클래스에서 꾸민다.
  */
 UCLASS()
 class PUNG_API APungAirProjectile : public AActor
 {
 	GENERATED_BODY()
 
-	/** 충돌 구체 (루트 컴포넌트) */
+	/** 루트. 블루프린트에서 메시나 이펙트를 여기에 붙인다. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta=(AllowPrivateAccess="true"))
-	TObjectPtr<USphereComponent> CollisionComponent;
-
-	/** 비행 처리 */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta=(AllowPrivateAccess="true"))
-	TObjectPtr<UProjectileMovementComponent> ProjectileMovement;
+	TObjectPtr<USceneComponent> Root;
 
 public:
 
 	APungAirProjectile();
 
-	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	/** 생성 직후 호출한다. Start 에서 End 까지 Speed 로 날아간다. */
+	void InitShot(const FVector& Start, const FVector& End, float Speed, float InBlastRadius);
 
-	/** 서버 전용. SpawnActorDeferred 와 FinishSpawning 사이에 호출해야 한다. */
-	void InitProjectile(const UPungAirGunData* InGunData, AController* InShooterController);
-
-	/** 서버 전용. Location 에서 터뜨리고 넉백을 적용한다. 여러 번 호출해도 한 번만 터진다. */
-	void Detonate(const FVector& Location);
+	virtual void Tick(float DeltaSeconds) override;
 
 protected:
 
-	virtual void BeginPlay() override;
+	/** 착탄 지점에 도착했을 때 */
+	void Arrive();
 
-	/** 기본 이동 복제는 위치만 맞춰주므로, 클라이언트의 비행 속도도 서버와 맞춘다 */
-	virtual void PostNetReceiveVelocity(const FVector& NewVelocity) override;
-
-	UFUNCTION()
-	void OnProjectileHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
-
-	/** 폭발 반경 안의 모든 캐릭터를 밀어낸다 */
-	void ApplyRadialKnockback(const FVector& Origin) const;
-
-	UFUNCTION()
-	void OnRep_Detonated();
-
-	/** 폭발이 일어났을 때 모든 머신에서 실행된다 */
-	void HandleDetonated();
-
-	/** 폭발 이펙트/사운드용 훅. 모든 머신에서 실행된다. */
+	/** 폭발 이펙트/사운드용 훅. 착탄 지점에 도착하면 호출된다. */
 	UFUNCTION(BlueprintImplementableEvent, Category="Air Gun", meta=(DisplayName="On Detonated"))
 	void BP_OnDetonated(const FVector& Location, float Radius);
 
-	/** 폭발에 쓰는 수치 (서버 전용) */
-	UPROPERTY(Transient)
-	TObjectPtr<const UPungAirGunData> GunData;
+	FVector StartLocation;
+	FVector EndLocation;
+	float TravelDistance = 0.f;
+	float TravelSpeed = 1.f;
+	float Traveled = 0.f;
 
-	/** 밀어낸 공로를 받을 컨트롤러. 비행 중에 쏜 사람의 폰이 죽어도 킬 판정이 유지되도록 따로 보관한다. */
-	TWeakObjectPtr<AController> ShooterController;
-
-	/** 클라이언트가 폭발 이펙트 크기를 맞출 수 있도록 복제한다 */
-	UPROPERTY(Replicated, BlueprintReadOnly, Category="Air Gun")
+	/** 이펙트 크기를 맞추기 위한 기준 폭발 반경 */
+	UPROPERTY(BlueprintReadOnly, Category="Air Gun")
 	float BlastRadius = 0.f;
-
-	UPROPERTY(Replicated)
-	FVector_NetQuantize DetonationLocation;
-
-	UPROPERTY(ReplicatedUsing=OnRep_Detonated)
-	bool bDetonated = false;
-
-	/** 리슨 서버에서 HandleDetonated 가 두 번 실행되지 않도록 막는다 */
-	bool bHandledDetonation = false;
 };

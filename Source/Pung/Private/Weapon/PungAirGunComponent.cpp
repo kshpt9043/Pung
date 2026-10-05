@@ -3,10 +3,19 @@
 
 #include "Weapon/PungAirGunComponent.h"
 #include "Character/PungCharacter.h"
+#include "Components/CapsuleComponent.h"
+#include "DrawDebugHelpers.h"
+#include "Engine/OverlapResult.h"
+#include "EngineUtils.h"
 #include "Net/UnrealNetwork.h"
 #include "TimerManager.h"
 #include "Weapon/PungAirGunData.h"
 #include "Weapon/PungAirProjectile.h"
+
+static TAutoConsoleVariable<bool> CVarPungDebugBlast(
+	TEXT("pung.Debug.Blast"),
+	false,
+	TEXT("공기총 조준선, 폭발 반경(자기: 노랑, 남: 청록), 넉백 방향을 디버그 드로잉으로 표시한다."));
 
 UPungAirGunComponent::UPungAirGunComponent()
 {
@@ -88,37 +97,155 @@ void UPungAirGunComponent::Fire()
 	FRotator AimRotation;
 	Character->GetActorEyesViewPoint(EyeLocation, AimRotation);
 	const FVector AimDirection = AimRotation.Vector();
-	FVector SpawnLocation = EyeLocation + AimDirection * MuzzleOffset;
 
-	// 조준한 곳이 근거리(InstantBurstRange 이내)면 비행 없이 그 자리에서 바로 터뜨린다 (GDD §3.1).
-	// 달리면서 발밑을 쏠 때 비행 시간 동안 몸이 이동해 폭발 방향이 들쭉날쭉해지는 것을 막는다.
-	// 총구보다 가까운 벽/바닥에 바짝 붙어 쏜 경우도 여기서 처리된다.
-	FHitResult BlockingHit;
-	FCollisionQueryParams Params(SCENE_QUERY_STAT(PungAirGunInstantBurst), false, Character);
+	// 판정은 지금 이 순간 끝낸다. 비행 시간 동안 몸이 움직여 폭발 위치가 어긋나는 일이 없다.
+	float BurstDistance = 0.f;
+	const FVector BurstLocation = FindBurstLocation(Character, EyeLocation, AimDirection, BurstDistance);
+	ApplyBlast(BurstLocation, Character);
+
+	// 연출용 탄은 눈 앞에서 나타나 착탄 지점까지 날아간다
+	const FVector VisualStart = EyeLocation + AimDirection * FMath::Min(MuzzleOffset, BurstDistance * 0.5f);
+	MulticastShotFired(VisualStart, BurstLocation);
+}
+
+FVector UPungAirGunComponent::FindBurstLocation(const APungCharacter* Shooter, const FVector& EyeLocation, const FVector& AimDirection, float& OutDistance) const
+{
+	const UPungAirGunData* Data = GetGunData();
+	UWorld* World = GetWorld();
+
+	// 1) 조준선이 처음 닿는 지형/캐릭터. 없으면 최대 사거리 끝.
+	float BestDistance = Data->MaxRange;
+
+	FHitResult Hit;
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(PungAirGunShot), false, Shooter);
 	FCollisionObjectQueryParams ObjectParams;
 	ObjectParams.AddObjectTypesToQuery(ECC_WorldStatic);
 	ObjectParams.AddObjectTypesToQuery(ECC_WorldDynamic);
 	ObjectParams.AddObjectTypesToQuery(ECC_Pawn);
-	const float TraceDistance = FMath::Max(Data->InstantBurstRange, MuzzleOffset);
-	const bool bInstantBurst = World->LineTraceSingleByObjectType(BlockingHit, EyeLocation, EyeLocation + AimDirection * TraceDistance, ObjectParams, Params);
-	if (bInstantBurst)
+	if (World->LineTraceSingleByObjectType(Hit, EyeLocation, EyeLocation + AimDirection * Data->MaxRange, ObjectParams, Params))
 	{
-		SpawnLocation = BlockingHit.ImpactPoint;
+		BestDistance = Hit.Distance;
 	}
 
-	const FTransform SpawnTransform(AimDirection.Rotation(), SpawnLocation);
-	APungAirProjectile* Projectile = World->SpawnActorDeferred<APungAirProjectile>(ProjectileClass, SpawnTransform, Character, Character, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
-	if (!Projectile)
+	// 2) 근접 신관: 조준선이 다른 플레이어 몸 중심 근처를 지나가면 그 지점에서 터진다.
+	//    이게 없으면 사람을 살짝 빗나간 탄이 한참 뒤 지형에서 터져 아무도 밀지 못한다.
+	//    코앞(60cm 미만)은 무시한다. 내 앞에 붙은 사람 때문에 발밑 로켓 점프가 막히지 않도록.
+	constexpr float MinFuseDistance = 60.f;
+	for (TActorIterator<APungCharacter> It(World); It; ++It)
+	{
+		const APungCharacter* Other = *It;
+		if (Other == Shooter)
+		{
+			continue;
+		}
+
+		const FVector BodyCenter = Other->GetCapsuleComponent()->GetComponentLocation();
+		const float AlongRay = FVector::DotProduct(BodyCenter - EyeLocation, AimDirection);
+		if (AlongRay < MinFuseDistance || AlongRay >= BestDistance)
+		{
+			continue;
+		}
+
+		const FVector ClosestOnRay = EyeLocation + AimDirection * AlongRay;
+		if (FVector::Dist(ClosestOnRay, BodyCenter) < Data->ProximityFuseRadius)
+		{
+			BestDistance = AlongRay;
+		}
+	}
+
+	OutDistance = BestDistance;
+	const FVector BurstLocation = EyeLocation + AimDirection * BestDistance;
+
+	if (CVarPungDebugBlast.GetValueOnGameThread())
+	{
+		DrawDebugLine(World, EyeLocation, BurstLocation, FColor::White, false, 2.f, 0, 1.f);
+	}
+
+	return BurstLocation;
+}
+
+void UPungAirGunComponent::ApplyBlast(const FVector& Origin, APungCharacter* Shooter) const
+{
+	const UPungAirGunData* Data = GetGunData();
+	UWorld* World = GetWorld();
+	AController* ShooterController = Shooter->GetController();
+
+	// 자기 폭발은 기준값, 남을 칠 때는 배율을 곱한다 (웹 원작 방식)
+	const float SelfRadius = Data->BlastRadius;
+	const float OtherRadius = Data->BlastRadius * Data->OtherBlastRadiusScale;
+	const float QueryRadius = FMath::Max(SelfRadius, OtherRadius);
+
+	TArray<FOverlapResult> Overlaps;
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(PungAirBlast), false);
+	World->OverlapMultiByObjectType(Overlaps, Origin, FQuat::Identity, FCollisionObjectQueryParams(ECC_Pawn), FCollisionShape::MakeSphere(QueryRadius), Params);
+
+	TSet<APungCharacter*> Pushed;
+	for (const FOverlapResult& Overlap : Overlaps)
+	{
+		APungCharacter* Character = Cast<APungCharacter>(Overlap.GetActor());
+		if (!Character || Pushed.Contains(Character))
+		{
+			continue;
+		}
+		Pushed.Add(Character);
+
+		const bool bSelf = Character == Shooter;
+		const float Radius = bSelf ? SelfRadius : OtherRadius;
+		const float CenterStrength = bSelf ? Data->KnockbackStrength : Data->KnockbackStrength * Data->OtherKnockbackScale;
+
+		// 힘의 감쇠는 캡슐 "표면"까지의 거리로 계산한다. 그래서 발밑 폭발도 직격과 같은 세기로 취급된다.
+		const UCapsuleComponent* Capsule = Character->GetCapsuleComponent();
+		const FVector Center = Capsule->GetComponentLocation();
+		const float CapsuleRadius = Capsule->GetScaledCapsuleRadius();
+		const FVector SegmentOffset(0.f, 0.f, Capsule->GetScaledCapsuleHalfHeight() - CapsuleRadius);
+		const FVector OnSegment = FMath::ClosestPointOnSegment(Origin, Center - SegmentOffset, Center + SegmentOffset);
+		const float SurfaceDistance = FMath::Max(0.f, FVector::Dist(Origin, OnSegment) - CapsuleRadius);
+		if (SurfaceDistance >= Radius)
+		{
+			continue;
+		}
+
+		const float Alpha = SurfaceDistance / Radius;
+		const float Strength = FMath::Lerp(CenterStrength, CenterStrength * Data->EdgeStrengthScale, Alpha);
+
+		// 방향은 캡슐 "중심" 기준이다. 발밑에서 터지면 위쪽 대각선으로 밀려 땅에서 떠오른다.
+		FVector Direction = (Center - Origin).GetSafeNormal();
+		if (Direction.IsNearlyZero())
+		{
+			Direction = FVector::UpVector;
+		}
+
+		const FVector Knockback = Direction * Strength;
+		Character->ApplyKnockback(Knockback, ShooterController);
+
+		if (CVarPungDebugBlast.GetValueOnGameThread())
+		{
+			DrawDebugDirectionalArrow(World, Center, Center + Knockback * 0.2f, 40.f, bSelf ? FColor::Yellow : FColor::Red, false, 2.f, 0, 3.f);
+		}
+	}
+
+	if (CVarPungDebugBlast.GetValueOnGameThread())
+	{
+		DrawDebugSphere(World, Origin, SelfRadius, 16, FColor::Yellow, false, 2.f);
+		DrawDebugSphere(World, Origin, OtherRadius, 16, FColor::Cyan, false, 2.f);
+	}
+}
+
+void UPungAirGunComponent::MulticastShotFired_Implementation(FVector_NetQuantize Start, FVector_NetQuantize End)
+{
+	if (GetNetMode() == NM_DedicatedServer || !ProjectileClass)
 	{
 		return;
 	}
 
-	Projectile->InitProjectile(Data, Character->GetController());
-	Projectile->FinishSpawning(SpawnTransform);
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.Owner = GetOwner();
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-	if (bInstantBurst)
+	if (APungAirProjectile* Visual = GetWorld()->SpawnActor<APungAirProjectile>(ProjectileClass, Start, (End - Start).Rotation(), SpawnParams))
 	{
-		Projectile->Detonate(BlockingHit.ImpactPoint);
+		const UPungAirGunData* Data = GetGunData();
+		Visual->InitShot(Start, End, Data->VisualProjectileSpeed, Data->BlastRadius);
 	}
 }
 
