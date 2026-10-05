@@ -90,15 +90,18 @@ void UPungAirGunComponent::Fire()
 	const FVector AimDirection = AimRotation.Vector();
 	FVector SpawnLocation = EyeLocation + AimDirection * MuzzleOffset;
 
-	// 눈과 총구 사이가 막혀 있으면 (벽이나 바닥에 바짝 붙어 쏜 경우) 그 자리에서 바로 터뜨린다
+	// 조준한 곳이 근거리(InstantBurstRange 이내)면 비행 없이 그 자리에서 바로 터뜨린다 (GDD §3.1).
+	// 달리면서 발밑을 쏠 때 비행 시간 동안 몸이 이동해 폭발 방향이 들쭉날쭉해지는 것을 막는다.
+	// 총구보다 가까운 벽/바닥에 바짝 붙어 쏜 경우도 여기서 처리된다.
 	FHitResult BlockingHit;
-	FCollisionQueryParams Params(SCENE_QUERY_STAT(PungAirGunMuzzle), false, Character);
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(PungAirGunInstantBurst), false, Character);
 	FCollisionObjectQueryParams ObjectParams;
 	ObjectParams.AddObjectTypesToQuery(ECC_WorldStatic);
 	ObjectParams.AddObjectTypesToQuery(ECC_WorldDynamic);
 	ObjectParams.AddObjectTypesToQuery(ECC_Pawn);
-	const bool bMuzzleBlocked = World->LineTraceSingleByObjectType(BlockingHit, EyeLocation, SpawnLocation, ObjectParams, Params);
-	if (bMuzzleBlocked)
+	const float TraceDistance = FMath::Max(Data->InstantBurstRange, MuzzleOffset);
+	const bool bInstantBurst = World->LineTraceSingleByObjectType(BlockingHit, EyeLocation, EyeLocation + AimDirection * TraceDistance, ObjectParams, Params);
+	if (bInstantBurst)
 	{
 		SpawnLocation = BlockingHit.ImpactPoint;
 	}
@@ -113,7 +116,7 @@ void UPungAirGunComponent::Fire()
 	Projectile->InitProjectile(Data, Character->GetController());
 	Projectile->FinishSpawning(SpawnTransform);
 
-	if (bMuzzleBlocked)
+	if (bInstantBurst)
 	{
 		Projectile->Detonate(BlockingHit.ImpactPoint);
 	}

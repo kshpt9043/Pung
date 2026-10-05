@@ -26,6 +26,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Projectile", meta=(ClampMin="0.1", Units="s"))
 	float ProjectileLifetime = 3.f;
 
+	/**
+	 *  조준한 곳이 이 거리 안이면 날아가지 않고 그 자리에서 바로 터진다.
+	 *  달리면서 발밑을 쏴도 비행 시간 때문에 폭발 위치가 어긋나지 않게 하기 위함.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Projectile", meta=(ClampMin="0", Units="cm"))
+	float InstantBurstRange = 250.f;
+
 	/** 폭발 지점에서 캡슐 표면까지 이 거리 안에 있는 캐릭터가 밀려난다 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Blast", meta=(ClampMin="1", Units="cm"))
 	float BlastRadius = 300.f;
