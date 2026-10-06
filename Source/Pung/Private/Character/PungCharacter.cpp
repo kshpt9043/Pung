@@ -3,11 +3,13 @@
 
 #include "Character/PungCharacter.h"
 #include "Camera/CameraComponent.h"
+#include "Character/PungCharacterMovementComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "EnhancedInputComponent.h"
 #include "Game/PungGameMode.h"
 #include "Game/PungGameState.h"
+#include "GameFramework/PlayerState.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "InputActionValue.h"
 #include "Net/UnrealNetwork.h"
@@ -20,7 +22,8 @@ static TAutoConsoleVariable<bool> CVarPungKnockbackClientApply(
 	true,
 	TEXT("서버가 넉백을 적용할 때 소유 클라이언트에서도 같이 적용한다 (위치 보정 끊김 감소). 껐다 켜며 비교용."));
 
-APungCharacter::APungCharacter()
+APungCharacter::APungCharacter(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer.SetDefaultSubobjectClass<UPungCharacterMovementComponent>(ACharacter::CharacterMovementComponentName))
 {
 	PrimaryActorTick.bCanEverTick = false;
 
@@ -75,6 +78,36 @@ void APungCharacter::FellOutOfWorld(const UDamageType& DamageType)
 	Super::FellOutOfWorld(DamageType);
 }
 
+void APungCharacter::BeginPlay()
+{
+	Super::BeginPlay();
+
+	// 매치가 이미 끝난 뒤 생성됐으면 바로 멈춘다. 게임 상태가 아직 없으면 나중에 게임 상태가 알려준다.
+	if (const APungGameState* PungGameState = GetWorld()->GetGameState<APungGameState>())
+	{
+		HandleMatchPhaseChanged(PungGameState->GetMatchPhase());
+	}
+}
+
+void APungCharacter::HandleMatchPhaseChanged(EPungMatchPhase NewPhase)
+{
+	// 입력만 막으면 서버가 클라이언트의 이동을 그대로 믿으므로, 이동 자체를 끈다.
+	// 서버와 소유 클라이언트가 같이 꺼야 이동 예측이 어긋나지 않는다.
+	UCharacterMovementComponent* Movement = GetCharacterMovement();
+	if (NewPhase == EPungMatchPhase::Ended)
+	{
+		if (Movement->MovementMode != MOVE_None)
+		{
+			Movement->StopMovementImmediately();
+			Movement->DisableMovement();
+		}
+	}
+	else if (Movement->MovementMode == MOVE_None)
+	{
+		Movement->SetDefaultMovementMode();
+	}
+}
+
 bool APungCharacter::CanAct() const
 {
 	// 게임 상태가 Pung 것이 아니면 (테스트 맵 등) 제한하지 않는다
@@ -115,8 +148,10 @@ void APungCharacter::DoMove(float Right, float Forward)
 {
 	if (GetController() && CanAct())
 	{
-		AddMovementInput(GetActorRightVector(), Right);
-		AddMovementInput(GetActorForwardVector(), Forward);
+		// 넉백 직후에는 입력이 약해진다. 입력은 소유 클라이언트에서 나오므로 여기서만 줄이면 서버도 따라간다.
+		const float Scale = GetMoveInputScale();
+		AddMovementInput(GetActorRightVector(), Right * Scale);
+		AddMovementInput(GetActorForwardVector(), Forward * Scale);
 	}
 }
 
@@ -179,6 +214,25 @@ void APungCharacter::ClientApplyKnockback_Implementation(FVector_NetQuantize10 K
 
 void APungCharacter::LaunchFromKnockback(const FVector& Knockback)
 {
+	const double Now = GetWorld()->GetTimeSeconds();
+	KnockbackControlEndTime = Now + KnockbackControlDuration;
+
+	// 땅에서 맞았을 때만 폭발 점프 유예를 준다
+	if (GetCharacterMovement()->IsMovingOnGround())
+	{
+		// 서버가 원격 플레이어를 판정할 때는, 클라이언트가 넉백을 받고 점프를 눌러 그 입력이 다시 서버에 오기까지
+		// 왕복 지연만큼 늦게 도착하므로 유예 시간을 그만큼 늘려준다.
+		double ExtraTime = 0.0;
+		if (HasAuthority() && !IsLocallyControlled())
+		{
+			if (const APlayerState* State = GetPlayerState())
+			{
+				ExtraTime = State->GetPingInMilliseconds() * 0.001;
+			}
+		}
+		BlastJumpGraceEndTime = Now + BlastJumpGraceTime + ExtraTime;
+	}
+
 	// 넉백은 현재 속도에 더해진다. 단, 떨어지는 중에 위로 밀리면 낙하 속도에 상쇄되지 않도록 위쪽 성분을 그대로 쓴다.
 	FVector NewVelocity = GetVelocity() + Knockback;
 	if (Knockback.Z > 0.f && GetVelocity().Z < 0.f)
@@ -189,6 +243,38 @@ void APungCharacter::LaunchFromKnockback(const FVector& Knockback)
 	LaunchCharacter(NewVelocity, true, true);
 
 	BP_OnKnockedBack(Knockback);
+}
+
+float APungCharacter::GetMoveInputScale() const
+{
+	return GetWorld()->GetTimeSeconds() < KnockbackControlEndTime ? KnockbackControlScale : 1.f;
+}
+
+bool APungCharacter::IsInBlastJumpGrace() const
+{
+	return GetWorld()->GetTimeSeconds() < BlastJumpGraceEndTime;
+}
+
+bool APungCharacter::ConsumeBlastJumpGrace()
+{
+	if (!IsInBlastJumpGrace())
+	{
+		return false;
+	}
+
+	BlastJumpGraceEndTime = -1.0e9;
+	return true;
+}
+
+bool APungCharacter::CanJumpInternal_Implementation() const
+{
+	if (Super::CanJumpInternal_Implementation())
+	{
+		return true;
+	}
+
+	const UCharacterMovementComponent* Movement = GetCharacterMovement();
+	return IsInBlastJumpGrace() && Movement->IsFalling() && Movement->IsJumpAllowed();
 }
 
 void APungCharacter::SetInvulnerable(bool bNewInvulnerable, float Duration)

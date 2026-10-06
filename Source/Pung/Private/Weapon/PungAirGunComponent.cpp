@@ -8,6 +8,7 @@
 #include "Engine/OverlapResult.h"
 #include "EngineUtils.h"
 #include "Net/UnrealNetwork.h"
+#include "Pung.h"
 #include "TimerManager.h"
 #include "Weapon/PungAirGunData.h"
 #include "Weapon/PungAirProjectile.h"
@@ -54,23 +55,50 @@ int32 UPungAirGunComponent::GetMaxCharges() const
 
 void UPungAirGunComponent::RequestFire()
 {
+	APungCharacter* Character = GetOwner<APungCharacter>();
 	const double Now = GetWorld()->GetTimeSeconds();
-	if (Charges <= 0 || Now - LastRequestTime < GetGunData()->FireInterval)
+	if (!Character || Charges <= 0 || Now - LastRequestTime < GetGunData()->FireInterval)
 	{
 		return;
 	}
 	LastRequestTime = Now;
 
-	ServerFire();
+	// 내 화면에서 보고 있는 그대로를 서버에 보낸다
+	FVector EyeLocation;
+	FRotator AimRotation;
+	Character->GetActorEyesViewPoint(EyeLocation, AimRotation);
+	const FVector AimDirection = AimRotation.Vector();
+
+	ServerFire(EyeLocation, AimDirection);
+
+	// 연출용 탄은 서버 응답을 기다리지 않고 바로 띄운다. 착탄 지점은 내 화면 기준 예측값이다.
+	float BurstDistance = 0.f;
+	const FVector BurstLocation = FindBurstLocation(Character, EyeLocation, AimDirection, BurstDistance);
+	SpawnShotVisual(EyeLocation + AimDirection * FMath::Min(MuzzleOffset, BurstDistance * 0.5f), BurstLocation);
+
 	OnFired.Broadcast();
 }
 
-void UPungAirGunComponent::ServerFire_Implementation()
+void UPungAirGunComponent::ServerFire_Implementation(FVector_NetQuantize10 ClientEyeLocation, FVector_NetQuantizeNormal ClientAimDirection)
 {
-	Fire();
+	Fire(ClientEyeLocation, ClientAimDirection);
 }
 
-void UPungAirGunComponent::Fire()
+bool UPungAirGunComponent::FireFromServer(const FVector& AimDirection)
+{
+	APungCharacter* Character = GetOwner<APungCharacter>();
+	if (!Character || !Character->HasAuthority())
+	{
+		return false;
+	}
+
+	FVector EyeLocation;
+	FRotator EyeRotation;
+	Character->GetActorEyesViewPoint(EyeLocation, EyeRotation);
+	return Fire(EyeLocation, AimDirection);
+}
+
+bool UPungAirGunComponent::Fire(const FVector& ClientEyeLocation, const FVector& ClientAimDirection)
 {
 	APungCharacter* Character = GetOwner<APungCharacter>();
 	const UPungAirGunData* Data = GetGunData();
@@ -80,7 +108,7 @@ void UPungAirGunComponent::Fire()
 	const double Now = World->GetTimeSeconds();
 	if (!Character || !Character->CanAct() || Charges <= 0 || Now - LastFireTime < Data->FireInterval * 0.9)
 	{
-		return;
+		return false;
 	}
 	LastFireTime = Now;
 
@@ -93,10 +121,17 @@ void UPungAirGunComponent::Fire()
 	// 총을 쏘면 리스폰 무적이 즉시 풀린다 (GDD §5.4)
 	Character->SetInvulnerable(false);
 
-	FVector EyeLocation;
-	FRotator AimRotation;
-	Character->GetActorEyesViewPoint(EyeLocation, AimRotation);
-	const FVector AimDirection = AimRotation.Vector();
+	// 조준은 쏜 사람 화면 기준이다. 서버의 컨트롤 회전은 이동 패킷을 따라 늦게 오므로,
+	// 그걸 쓰면 빠르게 돌면서 쏠 때 몇 프레임 전 방향으로 판정된다.
+	FVector AimDirection = ClientAimDirection.GetSafeNormal();
+	if (AimDirection.IsNearlyZero())
+	{
+		FVector ServerEyeLocation;
+		FRotator ServerAimRotation;
+		Character->GetActorEyesViewPoint(ServerEyeLocation, ServerAimRotation);
+		AimDirection = ServerAimRotation.Vector();
+	}
+	const FVector EyeLocation = ValidateEyeLocation(Character, ClientEyeLocation);
 
 	// 판정은 지금 이 순간 끝낸다. 비행 시간 동안 몸이 움직여 폭발 위치가 어긋나는 일이 없다.
 	float BurstDistance = 0.f;
@@ -106,6 +141,40 @@ void UPungAirGunComponent::Fire()
 	// 연출용 탄은 눈 앞에서 나타나 착탄 지점까지 날아간다
 	const FVector VisualStart = EyeLocation + AimDirection * FMath::Min(MuzzleOffset, BurstDistance * 0.5f);
 	MulticastShotFired(VisualStart, BurstLocation);
+	return true;
+}
+
+FVector UPungAirGunComponent::ValidateEyeLocation(const APungCharacter* Shooter, const FVector& ClientEyeLocation) const
+{
+	FVector ServerEyeLocation;
+	FRotator ServerAimRotation;
+	Shooter->GetActorEyesViewPoint(ServerEyeLocation, ServerAimRotation);
+
+	// 지연 동안 움직인 만큼은 인정하되, 허용 오차 밖이면 서버 위치 쪽으로 잘라낸다
+	const FVector Error = ClientEyeLocation - ServerEyeLocation;
+	if (Error.IsNearlyZero())
+	{
+		return ServerEyeLocation;
+	}
+
+	if (Error.SizeSquared() > FMath::Square(MaxEyeLocationError))
+	{
+		UE_LOG(LogPung, Verbose, TEXT("[사격] '%s' 눈 위치 오차 %.0fcm 가 허용치(%.0fcm)를 넘어 잘라냄"), *GetNameSafe(Shooter), Error.Size(), MaxEyeLocationError);
+	}
+	const FVector Offset = Error.GetClampedToMaxSize(MaxEyeLocationError);
+
+	// 서버 눈 위치에서 클라이언트 눈 위치 사이에 벽이 있으면 벽 너머 사격이 되므로 서버 위치를 쓴다
+	const FVector Candidate = ServerEyeLocation + Offset;
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(PungAirGunEyeCheck), false, Shooter);
+	FCollisionObjectQueryParams ObjectParams;
+	ObjectParams.AddObjectTypesToQuery(ECC_WorldStatic);
+	ObjectParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+	if (GetWorld()->LineTraceTestByObjectType(ServerEyeLocation, Candidate, ObjectParams, Params))
+	{
+		return ServerEyeLocation;
+	}
+
+	return Candidate;
 }
 
 FVector UPungAirGunComponent::FindBurstLocation(const APungCharacter* Shooter, const FVector& EyeLocation, const FVector& AimDirection, float& OutDistance) const
@@ -113,24 +182,9 @@ FVector UPungAirGunComponent::FindBurstLocation(const APungCharacter* Shooter, c
 	const UPungAirGunData* Data = GetGunData();
 	UWorld* World = GetWorld();
 
-	// 1) 조준선이 처음 닿는 지형/캐릭터. 없으면 최대 사거리 끝.
-	float BestDistance = Data->MaxRange;
-
-	FHitResult Hit;
+	// 무적인 플레이어는 탄이 그냥 통과한다. 밀리지도 않는 사람에게 탄이 터져 낭비되지 않도록.
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(PungAirGunShot), false, Shooter);
-	FCollisionObjectQueryParams ObjectParams;
-	ObjectParams.AddObjectTypesToQuery(ECC_WorldStatic);
-	ObjectParams.AddObjectTypesToQuery(ECC_WorldDynamic);
-	ObjectParams.AddObjectTypesToQuery(ECC_Pawn);
-	if (World->LineTraceSingleByObjectType(Hit, EyeLocation, EyeLocation + AimDirection * Data->MaxRange, ObjectParams, Params))
-	{
-		BestDistance = Hit.Distance;
-	}
-
-	// 2) 근접 신관: 조준선이 다른 플레이어 몸 중심 근처를 지나가면 그 지점에서 터진다.
-	//    이게 없으면 사람을 살짝 빗나간 탄이 한참 뒤 지형에서 터져 아무도 밀지 못한다.
-	//    코앞(60cm 미만)은 무시한다. 내 앞에 붙은 사람 때문에 발밑 로켓 점프가 막히지 않도록.
-	constexpr float MinFuseDistance = 60.f;
+	TArray<const APungCharacter*, TInlineAllocator<8>> FuseTargets;
 	for (TActorIterator<APungCharacter> It(World); It; ++It)
 	{
 		const APungCharacter* Other = *It;
@@ -139,6 +193,36 @@ FVector UPungAirGunComponent::FindBurstLocation(const APungCharacter* Shooter, c
 			continue;
 		}
 
+		if (Other->IsInvulnerable())
+		{
+			Params.AddIgnoredActor(Other);
+		}
+		else
+		{
+			FuseTargets.Add(Other);
+		}
+	}
+
+	// 1) 조준선이 처음 닿는 지형/캐릭터. 없으면 최대 사거리 끝.
+	float BestDistance = Data->MaxRange;
+
+	FHitResult Hit;
+	FCollisionObjectQueryParams ObjectParams;
+	ObjectParams.AddObjectTypesToQuery(ECC_WorldStatic);
+	ObjectParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+	ObjectParams.AddObjectTypesToQuery(ECC_Pawn);
+	if (World->LineTraceSingleByObjectType(Hit, EyeLocation, EyeLocation + AimDirection * Data->MaxRange, ObjectParams, Params))
+	{
+		// 표면에서 살짝 앞으로 당겨 터뜨린다. 표면 위에서 터지면 폭발의 벽 차단 검사가 그 표면에 막힐 수 있다.
+		BestDistance = FMath::Max(0.f, Hit.Distance - BurstSurfaceOffset);
+	}
+
+	// 2) 근접 신관: 조준선이 다른 플레이어 몸 중심 근처를 지나가면 그 지점에서 터진다.
+	//    이게 없으면 사람을 살짝 빗나간 탄이 한참 뒤 지형에서 터져 아무도 밀지 못한다.
+	//    코앞(60cm 미만)은 무시한다. 내 앞에 붙은 사람 때문에 발밑 로켓 점프가 막히지 않도록.
+	constexpr float MinFuseDistance = 60.f;
+	for (const APungCharacter* Other : FuseTargets)
+	{
 		const FVector BodyCenter = Other->GetCapsuleComponent()->GetComponentLocation();
 		const float AlongRay = FVector::DotProduct(BodyCenter - EyeLocation, AimDirection);
 		if (AlongRay < MinFuseDistance || AlongRay >= BestDistance)
@@ -205,6 +289,16 @@ void UPungAirGunComponent::ApplyBlast(const FVector& Origin, APungCharacter* Sho
 			continue;
 		}
 
+		// 벽 너머는 밀지 않는다
+		if (!HasBlastLineOfSight(Origin, Character, Shooter))
+		{
+			if (CVarPungDebugBlast.GetValueOnGameThread())
+			{
+				DrawDebugLine(World, Origin, Center, FColor::Silver, false, 2.f, 0, 1.f);
+			}
+			continue;
+		}
+
 		const float Alpha = SurfaceDistance / Radius;
 		const float Strength = FMath::Lerp(CenterStrength, CenterStrength * Data->EdgeStrengthScale, Alpha);
 
@@ -231,7 +325,45 @@ void UPungAirGunComponent::ApplyBlast(const FVector& Origin, APungCharacter* Sho
 	}
 }
 
+bool UPungAirGunComponent::HasBlastLineOfSight(const FVector& Origin, const APungCharacter* Target, const APungCharacter* Shooter) const
+{
+	// 캡슐의 발, 중심, 머리 중 하나라도 폭발 지점에서 보이면 맞는다. 낮은 엄폐물 뒤에서 머리만 나와 있어도 밀린다.
+	// 다른 캐릭터는 엄폐물로 치지 않는다.
+	const UCapsuleComponent* Capsule = Target->GetCapsuleComponent();
+	const FVector Center = Capsule->GetComponentLocation();
+	const FVector SegmentOffset(0.f, 0.f, Capsule->GetScaledCapsuleHalfHeight() - Capsule->GetScaledCapsuleRadius());
+
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(PungAirBlastSight), false, Target);
+	Params.AddIgnoredActor(Shooter);
+	FCollisionObjectQueryParams ObjectParams;
+	ObjectParams.AddObjectTypesToQuery(ECC_WorldStatic);
+	ObjectParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+
+	const FVector Points[] = { Center, Center - SegmentOffset, Center + SegmentOffset };
+	for (const FVector& Point : Points)
+	{
+		if (!GetWorld()->LineTraceTestByObjectType(Origin, Point, ObjectParams, Params))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 void UPungAirGunComponent::MulticastShotFired_Implementation(FVector_NetQuantize Start, FVector_NetQuantize End)
+{
+	// 쏜 사람은 발사 요청 때 이미 직접 띄웠다 (리슨 서버 호스트 포함).
+	// 봇은 서버에서 "로컬 조종"으로 치지만 직접 띄우지 않으므로 사람일 때만 건너뛴다.
+	const APawn* OwnerPawn = GetOwner<APawn>();
+	if (OwnerPawn && OwnerPawn->IsLocallyControlled() && OwnerPawn->IsPlayerControlled())
+	{
+		return;
+	}
+
+	SpawnShotVisual(Start, End);
+}
+
+void UPungAirGunComponent::SpawnShotVisual(const FVector& Start, const FVector& End) const
 {
 	if (GetNetMode() == NM_DedicatedServer || !ProjectileClass)
 	{
