@@ -240,7 +240,7 @@ float UPungItemComponent::GetTimeRemaining(const UPungItemData* Item) const
 	return 0.f;
 }
 
-bool UPungItemComponent::IsActive(const UPungItemData* Item) const
+bool UPungItemComponent::IsItemActive(const UPungItemData* Item) const
 {
 	return ActiveItems.ContainsByPredicate([Item](const FPungActiveItem& Active) { return Active.Item == Item; });
 }

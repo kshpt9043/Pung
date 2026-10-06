@@ -93,7 +93,7 @@ public:
 
 	/** 이 지속형 아이템이 켜져 있는지 */
 	UFUNCTION(BlueprintPure, Category="Item")
-	bool IsActive(const UPungItemData* Item) const;
+	bool IsItemActive(const UPungItemData* Item) const;
 
 	/** 아이템 목록이 바뀌었을 때 (획득, 만료, 사용). 모든 머신에서 실행된다. HUD 갱신용. */
 	UPROPERTY(BlueprintAssignable, Category="Item")
