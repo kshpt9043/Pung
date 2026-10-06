@@ -8,6 +8,7 @@
 
 class APungAIController;
 class APungCharacter;
+class UPungItemData;
 
 /**
  *  Pung 게임 모드: 시간 내 최다 킬 개인전 (GDD §5, §6). 서버에만 존재한다.
@@ -45,6 +46,9 @@ public:
 	/** 봇을 Count 명 뺀다. 실제로 뺀 수를 돌려준다. */
 	int32 RemoveBots(int32 Count);
 
+	/** 아이템 패드에 목록을 따로 지정하지 않았을 때 나오는 아이템들 */
+	const TArray<TObjectPtr<UPungItemData>>& GetDefaultItemPool() const { return DefaultItemPool; }
+
 	/** 정원. 세션이 있으면 세션 정원, 없으면 MaxPlayersWithoutSession. 봇도 한 자리를 차지한다. */
 	int32 GetMaxPlayers() const;
 
@@ -64,6 +68,10 @@ protected:
 	/** 봇 컨트롤러 클래스. BT 와 난이도는 이 클래스(BP)에서 지정한다. */
 	UPROPERTY(EditDefaultsOnly, Category="Bots")
 	TSubclassOf<APungAIController> BotControllerClass;
+
+	/** 아이템 패드의 기본 아이템 목록 (GDD §3.6) */
+	UPROPERTY(EditDefaultsOnly, Category="Items")
+	TArray<TObjectPtr<UPungItemData>> DefaultItemPool;
 
 	/** 세션 없이(혼자, PIE) 열었을 때의 정원. 봇을 넣을 수 있는 상한이 된다. */
 	UPROPERTY(EditDefaultsOnly, Category="Bots", meta=(ClampMin="1"))

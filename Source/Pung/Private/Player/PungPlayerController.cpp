@@ -7,7 +7,11 @@
 #include "EnhancedInputSubsystems.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/Engine.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "Character/PungCharacter.h"
 #include "Engine/GameInstance.h"
+#include "Item/PungItemComponent.h"
+#include "Item/PungItemData.h"
 #include "Game/PungGameMode.h"
 #include "InputMappingContext.h"
 #include "Online/PungSessionSubsystem.h"
@@ -209,4 +213,38 @@ void APungPlayerController::PungRemoveBot(int32 Count)
 	{
 		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, Message);
 	}
+}
+
+void APungPlayerController::PungGiveItem(const FString& ItemAssetName)
+{
+	APungCharacter* MyCharacter = GetPawn<APungCharacter>();
+	if (!HasAuthority() || !MyCharacter || !MyCharacter->GetItems())
+	{
+		UE_LOG(LogPung, Warning, TEXT("[아이템] 호스트가 살아 있을 때만 쓸 수 있습니다."));
+		return;
+	}
+
+	// 이름으로 아이템 데이터 에셋을 찾는다 (로드되지 않은 것도)
+	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+	TArray<FAssetData> Assets;
+	AssetRegistry.GetAssetsByClass(UPungItemData::StaticClass()->GetClassPathName(), Assets);
+
+	for (const FAssetData& Asset : Assets)
+	{
+		if (Asset.AssetName.ToString().Equals(ItemAssetName, ESearchCase::IgnoreCase))
+		{
+			if (const UPungItemData* Item = Cast<UPungItemData>(Asset.GetAsset()))
+			{
+				MyCharacter->GetItems()->GiveItem(Item);
+				return;
+			}
+		}
+	}
+
+	TArray<FString> Names;
+	for (const FAssetData& Asset : Assets)
+	{
+		Names.Add(Asset.AssetName.ToString());
+	}
+	UE_LOG(LogPung, Warning, TEXT("[아이템] '%s' 를 찾지 못했습니다. 있는 아이템: %s"), *ItemAssetName, *FString::Join(Names, TEXT(", ")));
 }

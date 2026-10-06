@@ -33,13 +33,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Shot", meta=(ClampMin="100", Units="cm/s"))
 	float VisualProjectileSpeed = 2500.f;
 
+	/**
+	 *  연출용 탄이 착탄 지점까지 가는 최대 시간. 멀리 쏠수록 탄속을 올려 이 시간 안에 도착시킨다.
+	 *  판정은 쏘는 순간 끝나므로, 탄이 늦게 도착하면 "맞기 전에 날아가는" 것처럼 보인다. 그 어긋남의 상한.
+	 *  0 이면 상한 없이 VisualProjectileSpeed 그대로 날아간다.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Shot", meta=(ClampMin="0", Units="s"))
+	float MaxVisualTravelTime = 0.1f;
+
 	/** 기준 폭발 반경. 자기 넉백(로켓 점프)에 그대로 쓰인다. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Blast", meta=(ClampMin="1", Units="cm"))
 	float BlastRadius = 300.f;
 
 	/** 기준 넉백 세기 (폭발 중심에서 받는 속도 변화량). 자기 넉백에 그대로 쓰인다. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Blast", meta=(ClampMin="0", Units="cm/s"))
-	float KnockbackStrength = 1500.f;
+	float KnockbackStrength = 2120.f;
 
 	/** 폭발 반경 끝에서 받는 힘의 비율 (중심 힘 대비) */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Blast", meta=(ClampMin="0", ClampMax="1"))
@@ -63,5 +71,5 @@ public:
 
 	/** 연속 발사 사이의 최소 간격 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ammo", meta=(ClampMin="0", Units="s"))
-	float FireInterval = 0.25f;
+	float FireInterval = 0.12f;
 };

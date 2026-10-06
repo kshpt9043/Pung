@@ -2,7 +2,10 @@
 
 
 #include "Player/PungPlayerState.h"
+#include "Engine/World.h"
+#include "Game/PungGameState.h"
 #include "Net/UnrealNetwork.h"
+#include "Pung.h"
 
 void APungPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
@@ -10,6 +13,7 @@ void APungPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 
 	DOREPLIFETIME(APungPlayerState, Kills);
 	DOREPLIFETIME(APungPlayerState, Deaths);
+	DOREPLIFETIME(APungPlayerState, RespawnServerTime);
 }
 
 void APungPlayerState::AddKill()
@@ -27,7 +31,36 @@ void APungPlayerState::AddDeath()
 	OnRep_Stats();
 }
 
+float APungPlayerState::GetRespawnTimeRemaining() const
+{
+	if (RespawnServerTime <= 0.0)
+	{
+		return 0.f;
+	}
+	return FMath::Max(0.f, static_cast<float>(RespawnServerTime - PungTime::GetServerTime(GetWorld())));
+}
+
+void APungPlayerState::SetRespawnServerTime(double ServerTime)
+{
+	RespawnServerTime = ServerTime;
+}
+
+void APungPlayerState::OnRep_PlayerName()
+{
+	Super::OnRep_PlayerName();
+
+	if (APungGameState* PungGameState = GetWorld() ? GetWorld()->GetGameState<APungGameState>() : nullptr)
+	{
+		PungGameState->NotifyScoreboardChanged();
+	}
+}
+
 void APungPlayerState::OnRep_Stats()
 {
 	OnStatsChanged.Broadcast(Kills, Deaths);
+
+	if (APungGameState* PungGameState = GetWorld() ? GetWorld()->GetGameState<APungGameState>() : nullptr)
+	{
+		PungGameState->NotifyScoreboardChanged();
+	}
 }

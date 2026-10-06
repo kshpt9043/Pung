@@ -9,6 +9,7 @@
 class UCameraComponent;
 class UInputAction;
 class UPungAirGunComponent;
+class UPungItemComponent;
 struct FInputActionValue;
 enum class EPungMatchPhase : uint8;
 
@@ -34,6 +35,10 @@ class PUNG_API APungCharacter : public ACharacter
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta=(AllowPrivateAccess="true"))
 	TObjectPtr<UPungAirGunComponent> AirGun;
 
+	/** 주운 아이템 (GDD §3.6) */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta=(AllowPrivateAccess="true"))
+	TObjectPtr<UPungItemComponent> Items;
+
 protected:
 
 	UPROPERTY(EditAnywhere, Category="Input")
@@ -51,6 +56,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Input")
 	TObjectPtr<UInputAction> FireAction;
 
+	/** 사용형 아이템 사용 (원작은 F) */
+	UPROPERTY(EditAnywhere, Category="Input")
+	TObjectPtr<UInputAction> UseItemAction;
+
 	/** false 면 자기 넉백이 "마지막으로 민 사람" 기록을 덮어쓰지 않는다 (GDD §5.2, 테스트 항목) */
 	UPROPERTY(EditAnywhere, Category="Knockback")
 	bool bSelfKnockbackOverridesLastAttacker = false;
@@ -62,6 +71,25 @@ protected:
 	/** 넉백 직후 이동 입력에 곱하는 배율 */
 	UPROPERTY(EditAnywhere, Category="Knockback", meta=(ClampMin="0", ClampMax="1"))
 	float KnockbackControlScale = 0.1f;
+
+	/**
+	 *  남에게 맞아 공중에 뜨면 착지할 때까지 이동 입력에 곱하는 배율.
+	 *  공중 제어(Air Control)로 넉백을 되돌려 버리지 못하게 한다. 봇의 길찾기 이동도 같이 막힌다.
+	 */
+	UPROPERTY(EditAnywhere, Category="Knockback", meta=(ClampMin="0", ClampMax="1"))
+	float KnockedAirborneInputScale = 0.15f;
+
+	/**
+	 *  연타 누적 상한. 남에게 맞아 얻는 수평 속도가 "이번 한 방의 수평 속도 × 이 배율" 을 넘지 않는다.
+	 *  한 방만 맞으면 영향이 없고, 공중에서 연달아 맞을 때 속도가 끝없이 쌓이는 것만 막는다.
+	 *  배율이라 과충전, 펄스처럼 센 한 방도 그대로 살아 있다. 로켓 점프(자기 넉백)에는 적용하지 않는다. 0 이면 상한 없음.
+	 */
+	UPROPERTY(EditAnywhere, Category="Knockback", meta=(ClampMin="0"))
+	float KnockbackStackLimitScale = 1.6f;
+
+	/** 내 폭발(로켓 점프)로 떴을 때도 착지할 때까지 입력을 줄일지. 끄면 로켓 점프 중 공중 제어가 그대로다. */
+	UPROPERTY(EditAnywhere, Category="Knockback")
+	bool bReduceAirControlOnSelfKnockback = false;
 
 	/**
 	 *  땅에서 폭발을 맞아 떠오른 뒤 이 시간 안에는 점프를 받아준다 (폭발 점프 유예, 웹 원작 방식).
@@ -78,6 +106,9 @@ public:
 
 	/** Kill Z 아래로 떨어지거나 Kill Z 볼륨에 들어가면 호출된다. 게임 모드에 사망을 알린 뒤 제거된다. */
 	virtual void FellOutOfWorld(const UDamageType& DamageType) override;
+
+	/** 착지하면 넉백 공중 조작 제한과 궤적 측정을 끝낸다 */
+	virtual void Landed(const FHitResult& Hit) override;
 
 	/** 매치 단계가 바뀌었을 때 게임 상태가 호출한다. 모든 머신에서 실행된다. */
 	void HandleMatchPhaseChanged(EPungMatchPhase NewPhase);
@@ -103,6 +134,10 @@ public:
 	UFUNCTION(BlueprintPure, Category="Pung")
 	bool IsInvulnerable() const { return bInvulnerable; }
 
+	/** 무적 남은 시간 (초). 무적이 아니면 0, 끝나는 시간 없이 켜져 있으면 -1. 모든 머신에서 쓸 수 있다. */
+	UFUNCTION(BlueprintPure, Category="Pung")
+	float GetInvulnerabilityTimeRemaining() const;
+
 	/** 서버 전용. 이 캐릭터를 마지막으로 민 컨트롤러와 그 시각 (월드 시간, 초) */
 	AController* GetLastAttacker() const { return LastAttacker.Get(); }
 	double GetLastAttackTime() const { return LastAttackTime; }
@@ -110,6 +145,7 @@ public:
 	USkeletalMeshComponent* GetFirstPersonMesh() const { return FirstPersonMesh; }
 	UCameraComponent* GetFirstPersonCamera() const { return FirstPersonCamera; }
 	UPungAirGunComponent* GetAirGun() const { return AirGun; }
+	UPungItemComponent* GetItems() const { return Items; }
 
 protected:
 
@@ -119,6 +155,9 @@ protected:
 
 	/** 폭발 점프 유예 중이면 공중에서도 점프할 수 있다 */
 	virtual bool CanJumpInternal_Implementation() const override;
+
+	/** 궤적 측정 (pung.Debug.Trajectory) 에서 기본 점프도 재기 위함 */
+	virtual void OnJumped_Implementation() override;
 
 	void MoveInput(const FInputActionValue& Value);
 	void LookInput(const FInputActionValue& Value);
@@ -138,12 +177,15 @@ protected:
 	UFUNCTION(BlueprintCallable, Category="Input")
 	virtual void DoFire();
 
+	UFUNCTION(BlueprintCallable, Category="Input")
+	virtual void DoUseItem();
+
 	/** 넉백에 따른 속도 변화를 실제로 적용한다 (서버, 또는 서버를 따라하는 소유 클라이언트) */
-	void LaunchFromKnockback(const FVector& Knockback);
+	void LaunchFromKnockback(const FVector& Knockback, bool bSelf);
 
 	/** 서버가 적용한 넉백을 소유 클라이언트에서도 똑같이 적용해 이동 예측을 맞춘다 */
 	UFUNCTION(Client, Reliable)
-	void ClientApplyKnockback(FVector_NetQuantize10 Knockback);
+	void ClientApplyKnockback(FVector_NetQuantize10 Knockback, bool bSelf);
 
 	UFUNCTION()
 	void OnRep_Invulnerable();
@@ -159,6 +201,10 @@ protected:
 	UPROPERTY(ReplicatedUsing=OnRep_Invulnerable)
 	bool bInvulnerable = false;
 
+	/** 무적이 끝나는 서버 시각. 끝나는 시간 없이 켜졌거나 무적이 아니면 0. */
+	UPROPERTY(Replicated)
+	double InvulnerableEndServerTime = 0.0;
+
 	FTimerHandle InvulnerabilityTimer;
 
 	TWeakObjectPtr<AController> LastAttacker;
@@ -170,4 +216,26 @@ protected:
 
 	/** 이 시각(월드 시간)까지 공중에서도 점프를 받아준다. 서버와 소유 클라이언트에서 각자 잰다. */
 	double BlastJumpGraceEndTime = -1.0e9;
+
+	/** 남에게 맞아 떴고 아직 착지하지 않았다. 서버와 소유 클라이언트에서 각자 관리한다. */
+	bool bKnockedAirborne = false;
+
+	// ---- 궤적 측정 (pung.Debug.Trajectory) ----
+
+	/** 궤적 측정을 시작한다 (이미 재는 중이면 새로 시작) */
+	void StartTrajectory(const TCHAR* Label);
+
+	/** 궤적 한 점을 찍는다 */
+	void SampleTrajectory();
+
+	/** 측정을 끝내고 결과를 화면과 로그에 남긴다 */
+	void FinishTrajectory(const TCHAR* Ending);
+
+	FTimerHandle TrajectoryTimer;
+	FString TrajectoryLabel;
+	FVector TrajectoryStart = FVector::ZeroVector;
+	FVector TrajectoryLast = FVector::ZeroVector;
+	float TrajectoryMaxZ = 0.f;
+	double TrajectoryStartTime = 0.0;
+	bool bTrajectoryLeftGround = false;
 };

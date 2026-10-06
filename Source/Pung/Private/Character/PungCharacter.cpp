@@ -12,10 +12,18 @@
 #include "GameFramework/PlayerState.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "InputActionValue.h"
+#include "Item/PungItemComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "Pung.h"
+#include "DrawDebugHelpers.h"
+#include "Engine/Engine.h"
 #include "TimerManager.h"
 #include "Weapon/PungAirGunComponent.h"
+
+static TAutoConsoleVariable<bool> CVarPungDebugTrajectory(
+	TEXT("pung.Debug.Trajectory"),
+	false,
+	TEXT("점프, 로켓 점프, 넉백 뒤의 비행 궤적을 그리고 비행 시간, 최고 높이, 수평 거리를 화면과 로그에 남긴다 (맵 치수 측정, 넉백 튜닝용)."));
 
 static TAutoConsoleVariable<bool> CVarPungKnockbackClientApply(
 	TEXT("pung.Knockback.ClientApply"),
@@ -51,11 +59,14 @@ APungCharacter::APungCharacter(const FObjectInitializer& ObjectInitializer)
 	GetMesh()->FirstPersonPrimitiveType = EFirstPersonPrimitiveType::WorldSpaceRepresentation;
 
 	AirGun = CreateDefaultSubobject<UPungAirGunComponent>(TEXT("Air Gun"));
+	Items = CreateDefaultSubobject<UPungItemComponent>(TEXT("Items"));
 
 	// GDD §10 초기값. 밀려난 플레이어가 공중에서 감속되지 않고 날아가도록 공중 감속을 끈다.
 	UCharacterMovementComponent* Movement = GetCharacterMovement();
 	Movement->AirControl = 0.3f;
 	Movement->BrakingDecelerationFalling = 0.f;
+	// 중력을 세게 해서 같은 거리를 더 빨리, 묵직하게 날아가게 한다 (넉백 세기와 점프 속도를 같이 올려 높이와 거리는 유지)
+	Movement->GravityScale = 2.f;
 }
 
 void APungCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -63,10 +74,17 @@ void APungCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLi
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(APungCharacter, bInvulnerable);
+	DOREPLIFETIME(APungCharacter, InvulnerableEndServerTime);
 }
 
 void APungCharacter::FellOutOfWorld(const UDamageType& DamageType)
 {
+	// 떨어져 죽어도 거기까지의 궤적은 남긴다 (링아웃 거리 확인용)
+	if (GetWorldTimerManager().IsTimerActive(TrajectoryTimer))
+	{
+		FinishTrajectory(TEXT("낙사"));
+	}
+
 	if (HasAuthority())
 	{
 		if (APungGameMode* GameMode = GetWorld()->GetAuthGameMode<APungGameMode>())
@@ -130,6 +148,7 @@ void APungCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompo
 	EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &APungCharacter::DoJumpStart);
 	EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &APungCharacter::DoJumpEnd);
 	EnhancedInputComponent->BindAction(FireAction, ETriggerEvent::Started, this, &APungCharacter::DoFire);
+	EnhancedInputComponent->BindAction(UseItemAction, ETriggerEvent::Started, this, &APungCharacter::DoUseItem);
 }
 
 void APungCharacter::MoveInput(const FInputActionValue& Value)
@@ -185,6 +204,14 @@ void APungCharacter::DoFire()
 	}
 }
 
+void APungCharacter::DoUseItem()
+{
+	if (CanAct())
+	{
+		Items->RequestUse();
+	}
+}
+
 void APungCharacter::ApplyKnockback(const FVector& Knockback, AController* InstigatorController)
 {
 	if (!HasAuthority() || bInvulnerable)
@@ -193,29 +220,44 @@ void APungCharacter::ApplyKnockback(const FVector& Knockback, AController* Insti
 	}
 
 	const bool bSelf = InstigatorController && InstigatorController == GetController();
+
+	// 닻 같은 아이템이 받는 넉백을 줄인다
+	const FVector ScaledKnockback = Knockback * Items->GetIncomingKnockbackScale(bSelf);
+
 	if (InstigatorController && (!bSelf || bSelfKnockbackOverridesLastAttacker))
 	{
 		LastAttacker = InstigatorController;
 		LastAttackTime = GetWorld()->GetTimeSeconds();
 	}
 
-	LaunchFromKnockback(Knockback);
+	LaunchFromKnockback(ScaledKnockback, bSelf);
 
 	if (!IsLocallyControlled() && CVarPungKnockbackClientApply.GetValueOnGameThread())
 	{
-		ClientApplyKnockback(Knockback);
+		ClientApplyKnockback(ScaledKnockback, bSelf);
 	}
 }
 
-void APungCharacter::ClientApplyKnockback_Implementation(FVector_NetQuantize10 Knockback)
+void APungCharacter::ClientApplyKnockback_Implementation(FVector_NetQuantize10 Knockback, bool bSelf)
 {
-	LaunchFromKnockback(Knockback);
+	LaunchFromKnockback(Knockback, bSelf);
 }
 
-void APungCharacter::LaunchFromKnockback(const FVector& Knockback)
+void APungCharacter::LaunchFromKnockback(const FVector& Knockback, bool bSelf)
 {
 	const double Now = GetWorld()->GetTimeSeconds();
 	KnockbackControlEndTime = Now + KnockbackControlDuration;
+
+	// 위로 뜨는 넉백이면 착지할 때까지 공중 조작을 줄인다. 수평 넉백은 곧바로 바닥에 붙으므로 해당 없음.
+	if (Knockback.Z > 0.f && (!bSelf || bReduceAirControlOnSelfKnockback))
+	{
+		bKnockedAirborne = true;
+	}
+
+	if (CVarPungDebugTrajectory.GetValueOnGameThread())
+	{
+		StartTrajectory(bSelf ? TEXT("로켓 점프") : TEXT("넉백"));
+	}
 
 	// 땅에서 맞았을 때만 폭발 점프 유예를 준다
 	if (GetCharacterMovement()->IsMovingOnGround())
@@ -240,6 +282,21 @@ void APungCharacter::LaunchFromKnockback(const FVector& Knockback)
 		NewVelocity.Z = Knockback.Z;
 	}
 
+	// 연타 누적 상한: 공중에서 연달아 맞아도 수평 속도가 한 방의 일정 배율을 넘지 않게 한다.
+	// 원래 그보다 빨랐다면(달리기 등) 그 속도까지는 깎지 않는다.
+	if (!bSelf && KnockbackStackLimitScale > 0.f)
+	{
+		const float HitHorizontal = Knockback.Size2D();
+		const float Limit = FMath::Max(HitHorizontal * KnockbackStackLimitScale, GetVelocity().Size2D());
+		const FVector Horizontal(NewVelocity.X, NewVelocity.Y, 0.f);
+		if (HitHorizontal > KINDA_SMALL_NUMBER && Horizontal.Size() > Limit)
+		{
+			const FVector Clamped = Horizontal.GetSafeNormal() * Limit;
+			NewVelocity.X = Clamped.X;
+			NewVelocity.Y = Clamped.Y;
+		}
+	}
+
 	LaunchCharacter(NewVelocity, true, true);
 
 	BP_OnKnockedBack(Knockback);
@@ -247,7 +304,109 @@ void APungCharacter::LaunchFromKnockback(const FVector& Knockback)
 
 float APungCharacter::GetMoveInputScale() const
 {
-	return GetWorld()->GetTimeSeconds() < KnockbackControlEndTime ? KnockbackControlScale : 1.f;
+	float Scale = GetWorld()->GetTimeSeconds() < KnockbackControlEndTime ? KnockbackControlScale : 1.f;
+	if (bKnockedAirborne)
+	{
+		Scale = FMath::Min(Scale, KnockedAirborneInputScale);
+	}
+	return Scale;
+}
+
+void APungCharacter::Landed(const FHitResult& Hit)
+{
+	Super::Landed(Hit);
+
+	bKnockedAirborne = false;
+
+	if (GetWorldTimerManager().IsTimerActive(TrajectoryTimer))
+	{
+		// 거의 수평인 넉백은 뜨자마자 착지한다. 그때는 끝내지 않고 바닥에서 미끄러져 멈출 때까지 잰다.
+		if (GetWorld()->GetTimeSeconds() - TrajectoryStartTime < 0.15)
+		{
+			bTrajectoryLeftGround = false;
+		}
+		else
+		{
+			FinishTrajectory(TEXT("착지"));
+		}
+	}
+}
+
+void APungCharacter::OnJumped_Implementation()
+{
+	Super::OnJumped_Implementation();
+
+	if (CVarPungDebugTrajectory.GetValueOnGameThread())
+	{
+		// 발밑 사격 직후의 점프(폭발 점프 유예)는 이미 재는 로켓 점프에 이어 붙인다
+		if (GetWorldTimerManager().IsTimerActive(TrajectoryTimer))
+		{
+			TrajectoryLabel += TEXT(" + 점프");
+		}
+		else
+		{
+			StartTrajectory(TEXT("점프"));
+		}
+	}
+}
+
+void APungCharacter::StartTrajectory(const TCHAR* Label)
+{
+	TrajectoryLabel = Label;
+	TrajectoryStart = GetActorLocation();
+	TrajectoryLast = TrajectoryStart;
+	TrajectoryMaxZ = TrajectoryStart.Z;
+	TrajectoryStartTime = GetWorld()->GetTimeSeconds();
+	bTrajectoryLeftGround = false;
+
+	GetWorldTimerManager().SetTimer(TrajectoryTimer, this, &APungCharacter::SampleTrajectory, 0.03f, true);
+}
+
+void APungCharacter::SampleTrajectory()
+{
+	const FVector Current = GetActorLocation();
+	DrawDebugLine(GetWorld(), TrajectoryLast, Current, FColor::Orange, false, 10.f, 0, 2.f);
+	TrajectoryLast = Current;
+	TrajectoryMaxZ = FMath::Max(TrajectoryMaxZ, Current.Z);
+
+	// 넉백은 다음 이동 틱에 적용되므로 아직 땅에 붙어 있을 수 있다. 한 번이라도 뜬 뒤에 착지를 기다린다.
+	if (GetCharacterMovement()->IsFalling())
+	{
+		bTrajectoryLeftGround = true;
+	}
+	else if (!bTrajectoryLeftGround && GetWorld()->GetTimeSeconds() - TrajectoryStartTime > 0.15 && GetVelocity().Size2D() < 10.f)
+	{
+		// 수평 넉백처럼 뜨지 않고 바닥에서 미끄러진 경우: 멈추면 끝낸다
+		FinishTrajectory(TEXT("미끄러져 멈춤"));
+		return;
+	}
+
+	// 안전장치: 오래 걸리면 끝낸다
+	if (GetWorld()->GetTimeSeconds() - TrajectoryStartTime > 10.0)
+	{
+		FinishTrajectory(TEXT("10초 초과"));
+	}
+}
+
+void APungCharacter::FinishTrajectory(const TCHAR* Ending)
+{
+	GetWorldTimerManager().ClearTimer(TrajectoryTimer);
+
+	const FVector End = GetActorLocation();
+	const float Duration = static_cast<float>(GetWorld()->GetTimeSeconds() - TrajectoryStartTime);
+	const float Apex = (TrajectoryMaxZ - TrajectoryStart.Z) / 100.f;
+	const float Horizontal = FVector::Dist2D(TrajectoryStart, End) / 100.f;
+	const float HeightChange = (End.Z - TrajectoryStart.Z) / 100.f;
+
+	const FString Message = FString::Printf(TEXT("[궤적] %s %s: %s | 시간 %.2fs | 최고 +%.2fm | 수평 %.2fm | 높이 변화 %+.2fm"),
+		*GetNameSafe(this), *TrajectoryLabel, Ending, Duration, Apex, Horizontal, HeightChange);
+	UE_LOG(LogPung, Log, TEXT("%s"), *Message);
+
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Orange, Message);
+	}
+	DrawDebugString(GetWorld(), End + FVector(0.f, 0.f, 120.f), FString::Printf(TEXT("%s %.1fm / +%.1fm"), *TrajectoryLabel, Horizontal, Apex), nullptr, FColor::Orange, 10.f, true);
 }
 
 bool APungCharacter::IsInBlastJumpGrace() const
@@ -285,6 +444,7 @@ void APungCharacter::SetInvulnerable(bool bNewInvulnerable, float Duration)
 	}
 
 	GetWorldTimerManager().ClearTimer(InvulnerabilityTimer);
+	InvulnerableEndServerTime = (bNewInvulnerable && Duration > 0.f) ? PungTime::GetServerTime(GetWorld()) + Duration : 0.0;
 
 	if (bNewInvulnerable && Duration > 0.f)
 	{
@@ -298,6 +458,19 @@ void APungCharacter::SetInvulnerable(bool bNewInvulnerable, float Duration)
 		// 서버에서는 OnRep 이 자동 호출되지 않으므로, 리슨 서버 호스트의 연출을 위해 직접 호출한다
 		OnRep_Invulnerable();
 	}
+}
+
+float APungCharacter::GetInvulnerabilityTimeRemaining() const
+{
+	if (!bInvulnerable)
+	{
+		return 0.f;
+	}
+	if (InvulnerableEndServerTime <= 0.0)
+	{
+		return -1.f;
+	}
+	return FMath::Max(0.f, static_cast<float>(InvulnerableEndServerTime - PungTime::GetServerTime(GetWorld())));
 }
 
 void APungCharacter::OnRep_Invulnerable()

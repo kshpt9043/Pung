@@ -7,6 +7,7 @@
 #include "PungGameState.generated.h"
 
 class APlayerState;
+class APungPlayerState;
 
 /** 매치 진행 단계 */
 UENUM(BlueprintType)
@@ -22,6 +23,7 @@ enum class EPungMatchPhase : uint8
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FPungMatchPhaseChangedSignature, EPungMatchPhase, NewPhase);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FPungPlayerFellSignature, APlayerState*, Killer, APlayerState*, Victim);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FPungScoreboardChangedSignature);
 
 /**
  *  모든 클라이언트가 공유하는 매치 상태: 단계, 남은 시간, 우승자, 킬 알림.
@@ -50,6 +52,16 @@ public:
 	UFUNCTION(BlueprintPure, Category="Pung")
 	TArray<APlayerState*> GetWinners() const { return ObjectPtrDecay(Winners); }
 
+	/** 점수판 순서의 플레이어 목록: 킬 많은 순, 같으면 사망 적은 순, 같으면 이름 순. 봇 포함. */
+	UFUNCTION(BlueprintPure, Category="Pung")
+	TArray<APungPlayerState*> GetSortedPlayers() const;
+
+	/** 누가 들어오거나 나가거나, 점수나 이름이 바뀌면 부른다. OnScoreboardChanged 를 알린다. */
+	void NotifyScoreboardChanged();
+
+	virtual void AddPlayerState(APlayerState* PlayerState) override;
+	virtual void RemovePlayerState(APlayerState* PlayerState) override;
+
 	/** 서버 전용 */
 	void SetMatchPhase(EPungMatchPhase NewPhase);
 
@@ -66,6 +78,10 @@ public:
 	/** 매치 단계가 바뀌었을 때. 모든 머신에서 실행된다. */
 	UPROPERTY(BlueprintAssignable, Category="Pung")
 	FPungMatchPhaseChangedSignature OnMatchPhaseChanged;
+
+	/** 점수판을 다시 그려야 할 때 (입장/퇴장, 킬/사망, 이름 변경). 모든 머신에서 실행된다. GetSortedPlayers 로 다시 읽으면 된다. */
+	UPROPERTY(BlueprintAssignable, Category="Pung")
+	FPungScoreboardChangedSignature OnScoreboardChanged;
 
 	/** 누군가 떨어졌을 때 (킬 피드용). Killer 가 null 이면 자멸. 모든 머신에서 실행된다. */
 	UPROPERTY(BlueprintAssignable, Category="Pung")

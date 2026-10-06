@@ -6,6 +6,7 @@
 #include "Components/CapsuleComponent.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/OverlapResult.h"
+#include "Item/PungItemComponent.h"
 #include "EngineUtils.h"
 #include "Net/UnrealNetwork.h"
 #include "Pung.h"
@@ -31,6 +32,8 @@ void UPungAirGunComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>&
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME_CONDITION(UPungAirGunComponent, Charges, COND_OwnerOnly);
+	DOREPLIFETIME_CONDITION(UPungAirGunComponent, NextChargeServerTime, COND_OwnerOnly);
+	DOREPLIFETIME_CONDITION(UPungAirGunComponent, ChargeCycleLength, COND_OwnerOnly);
 }
 
 void UPungAirGunComponent::BeginPlay()
@@ -51,6 +54,24 @@ const UPungAirGunData* UPungAirGunComponent::GetGunData() const
 int32 UPungAirGunComponent::GetMaxCharges() const
 {
 	return GetGunData()->MaxCharges;
+}
+
+float UPungAirGunComponent::GetTimeUntilNextCharge() const
+{
+	if (NextChargeServerTime <= 0.0)
+	{
+		return 0.f;
+	}
+	return FMath::Max(0.f, static_cast<float>(NextChargeServerTime - PungTime::GetServerTime(GetWorld())));
+}
+
+float UPungAirGunComponent::GetRechargeProgress() const
+{
+	if (NextChargeServerTime <= 0.0 || ChargeCycleLength <= 0.f)
+	{
+		return 1.f;
+	}
+	return FMath::Clamp(1.f - GetTimeUntilNextCharge() / ChargeCycleLength, 0.f, 1.f);
 }
 
 void UPungAirGunComponent::RequestFire()
@@ -104,9 +125,10 @@ bool UPungAirGunComponent::Fire(const FVector& ClientEyeLocation, const FVector&
 	const UPungAirGunData* Data = GetGunData();
 	UWorld* World = GetWorld();
 
-	// 클라이언트와 서버의 시간 차이 때문에 정상적인 발사가 거부되지 않도록 약간 여유를 둔다
+	// 요청이 네트워크를 거치며 간격이 들쭉날쭉해지므로, 정상적인 연사가 거부되지 않도록 여유를 둔다.
+	// 간격이 짧을수록 흔들림의 비중이 커서 넉넉히 잡는다. 탄 수는 따로 막으므로 얻는 이득은 거의 없다.
 	const double Now = World->GetTimeSeconds();
-	if (!Character || !Character->CanAct() || Charges <= 0 || Now - LastFireTime < Data->FireInterval * 0.9)
+	if (!Character || !Character->CanAct() || Charges <= 0 || Now - LastFireTime < Data->FireInterval * 0.7)
 	{
 		return false;
 	}
@@ -115,7 +137,7 @@ bool UPungAirGunComponent::Fire(const FVector& ClientEyeLocation, const FVector&
 	SetCharges(Charges - 1);
 	if (!World->GetTimerManager().IsTimerActive(RechargeTimer))
 	{
-		World->GetTimerManager().SetTimer(RechargeTimer, this, &UPungAirGunComponent::Recharge, Data->RechargeTime, true);
+		ScheduleRecharge(GetCurrentRechargeTime());
 	}
 
 	// 총을 쏘면 리스폰 무적이 즉시 풀린다 (GDD §5.4)
@@ -136,7 +158,8 @@ bool UPungAirGunComponent::Fire(const FVector& ClientEyeLocation, const FVector&
 	// 판정은 지금 이 순간 끝낸다. 비행 시간 동안 몸이 움직여 폭발 위치가 어긋나는 일이 없다.
 	float BurstDistance = 0.f;
 	const FVector BurstLocation = FindBurstLocation(Character, EyeLocation, AimDirection, BurstDistance);
-	ApplyBlast(BurstLocation, Character);
+	const UPungItemComponent* Items = Character->GetItems();
+	ApplyBlast(BurstLocation, Character, Items ? Items->GetOutgoingBlastModifiers() : FPungBlastModifiers());
 
 	// 연출용 탄은 눈 앞에서 나타나 착탄 지점까지 날아간다
 	const FVector VisualStart = EyeLocation + AimDirection * FMath::Min(MuzzleOffset, BurstDistance * 0.5f);
@@ -248,15 +271,30 @@ FVector UPungAirGunComponent::FindBurstLocation(const APungCharacter* Shooter, c
 	return BurstLocation;
 }
 
-void UPungAirGunComponent::ApplyBlast(const FVector& Origin, APungCharacter* Shooter) const
+FVector UPungAirGunComponent::PredictBurstLocation(const FVector& EyeLocation, const FVector& AimDirection) const
+{
+	float Distance = 0.f;
+	return FindBurstLocation(GetOwner<APungCharacter>(), EyeLocation, AimDirection, Distance);
+}
+
+void UPungAirGunComponent::BlastFromServer(const FVector& Origin, const FPungBlastModifiers& Modifiers)
+{
+	APungCharacter* Character = GetOwner<APungCharacter>();
+	if (Character && Character->HasAuthority())
+	{
+		ApplyBlast(Origin, Character, Modifiers);
+	}
+}
+
+void UPungAirGunComponent::ApplyBlast(const FVector& Origin, APungCharacter* Shooter, const FPungBlastModifiers& Modifiers) const
 {
 	const UPungAirGunData* Data = GetGunData();
 	UWorld* World = GetWorld();
 	AController* ShooterController = Shooter->GetController();
 
-	// 자기 폭발은 기준값, 남을 칠 때는 배율을 곱한다 (웹 원작 방식)
-	const float SelfRadius = Data->BlastRadius;
-	const float OtherRadius = Data->BlastRadius * Data->OtherBlastRadiusScale;
+	// 자기 폭발은 기준값, 남을 칠 때는 배율을 곱한다 (웹 원작 방식). 아이템 배율은 그 위에 곱한다.
+	const float SelfRadius = Data->BlastRadius * Modifiers.SelfRadiusScale;
+	const float OtherRadius = Data->BlastRadius * Data->OtherBlastRadiusScale * Modifiers.OtherRadiusScale;
 	const float QueryRadius = FMath::Max(SelfRadius, OtherRadius);
 
 	TArray<FOverlapResult> Overlaps;
@@ -274,8 +312,15 @@ void UPungAirGunComponent::ApplyBlast(const FVector& Origin, APungCharacter* Sho
 		Pushed.Add(Character);
 
 		const bool bSelf = Character == Shooter;
+		if (bSelf && !Modifiers.bPushSelf)
+		{
+			continue;
+		}
+
 		const float Radius = bSelf ? SelfRadius : OtherRadius;
-		const float CenterStrength = bSelf ? Data->KnockbackStrength : Data->KnockbackStrength * Data->OtherKnockbackScale;
+		const float CenterStrength = bSelf
+			? Data->KnockbackStrength * Modifiers.SelfStrengthScale
+			: Data->KnockbackStrength * Data->OtherKnockbackScale * Modifiers.OtherStrengthScale;
 
 		// 힘의 감쇠는 캡슐 "표면"까지의 거리로 계산한다. 그래서 발밑 폭발도 직격과 같은 세기로 취급된다.
 		const UCapsuleComponent* Capsule = Character->GetCapsuleComponent();
@@ -377,8 +422,31 @@ void UPungAirGunComponent::SpawnShotVisual(const FVector& Start, const FVector& 
 	if (APungAirProjectile* Visual = GetWorld()->SpawnActor<APungAirProjectile>(ProjectileClass, Start, (End - Start).Rotation(), SpawnParams))
 	{
 		const UPungAirGunData* Data = GetGunData();
-		Visual->InitShot(Start, End, Data->VisualProjectileSpeed, Data->BlastRadius);
+
+		// 먼 거리는 탄속을 올려 비행 시간 상한 안에 도착시킨다. 가까운 거리는 원래 속도라 탄이 보인다.
+		float Speed = Data->VisualProjectileSpeed;
+		if (Data->MaxVisualTravelTime > 0.f)
+		{
+			Speed = FMath::Max(Speed, FVector::Dist(Start, End) / Data->MaxVisualTravelTime);
+		}
+		Visual->InitShot(Start, End, Speed, Data->BlastRadius);
 	}
+}
+
+float UPungAirGunComponent::GetCurrentRechargeTime() const
+{
+	const APungCharacter* Character = GetOwner<APungCharacter>();
+	const UPungItemComponent* Items = Character ? Character->GetItems() : nullptr;
+	const float RateScale = Items ? Items->GetRechargeRateScale() : 1.f;
+	return GetGunData()->RechargeTime / FMath::Max(RateScale, KINDA_SMALL_NUMBER);
+}
+
+void UPungAirGunComponent::ScheduleRecharge(float Delay)
+{
+	Delay = FMath::Max(Delay, 0.01f);
+	GetWorld()->GetTimerManager().SetTimer(RechargeTimer, this, &UPungAirGunComponent::Recharge, Delay, false);
+	NextChargeServerTime = PungTime::GetServerTime(GetWorld()) + Delay;
+	ChargeCycleLength = GetCurrentRechargeTime();
 }
 
 void UPungAirGunComponent::Recharge()
@@ -388,8 +456,36 @@ void UPungAirGunComponent::Recharge()
 
 	if (Charges >= MaxCharges)
 	{
-		GetWorld()->GetTimerManager().ClearTimer(RechargeTimer);
+		NextChargeServerTime = 0.0;
 	}
+	else
+	{
+		// 충전 속도가 아이템으로 바뀔 수 있으므로 매번 그때의 충전 시간으로 다음을 잡는다
+		ScheduleRecharge(GetCurrentRechargeTime());
+	}
+}
+
+void UPungAirGunComponent::RefreshRechargeRate()
+{
+	FTimerManager& TimerManager = GetWorld()->GetTimerManager();
+	if (!TimerManager.IsTimerActive(RechargeTimer))
+	{
+		return;
+	}
+
+	// 지금까지 찬 비율은 그대로 두고 남은 부분만 새 속도로 채운다
+	const float OldLength = FMath::Max(ChargeCycleLength, KINDA_SMALL_NUMBER);
+	const float Progress = 1.f - TimerManager.GetTimerRemaining(RechargeTimer) / OldLength;
+	const float NewLength = GetCurrentRechargeTime();
+	ScheduleRecharge(NewLength * (1.f - FMath::Clamp(Progress, 0.f, 1.f)));
+	ChargeCycleLength = NewLength;
+}
+
+void UPungAirGunComponent::RefillCharges()
+{
+	GetWorld()->GetTimerManager().ClearTimer(RechargeTimer);
+	NextChargeServerTime = 0.0;
+	SetCharges(GetMaxCharges());
 }
 
 void UPungAirGunComponent::SetCharges(int32 NewCharges)
