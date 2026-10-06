@@ -35,7 +35,7 @@ EBTNodeResult::Type UBTTask_PungFindSafeLocation::ExecuteTask(UBehaviorTreeCompo
 {
 	UBlackboardComponent* Blackboard = OwnerComp.GetBlackboardComponent();
 	const APungCharacter* Self = PungBot::GetCharacter(OwnerComp);
-	UNavigationSystemV1* NavSystem = Self ? UNavigationSystemV1::GetCurrent<UNavigationSystemV1>(Self->GetWorld()) : nullptr;
+	UNavigationSystemV1* NavSystem = Self ? FNavigationSystem::GetCurrent<UNavigationSystemV1>(Self->GetWorld()) : nullptr;
 	if (!Blackboard || !Self || !NavSystem)
 	{
 		return EBTNodeResult::Failed;
