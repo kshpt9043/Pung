@@ -8,6 +8,7 @@
 #include "Engine/OverlapResult.h"
 #include "EngineUtils.h"
 #include "Net/UnrealNetwork.h"
+#include "Pung.h"
 #include "TimerManager.h"
 #include "Weapon/PungAirGunData.h"
 #include "Weapon/PungAirProjectile.h"
@@ -54,23 +55,36 @@ int32 UPungAirGunComponent::GetMaxCharges() const
 
 void UPungAirGunComponent::RequestFire()
 {
+	APungCharacter* Character = GetOwner<APungCharacter>();
 	const double Now = GetWorld()->GetTimeSeconds();
-	if (Charges <= 0 || Now - LastRequestTime < GetGunData()->FireInterval)
+	if (!Character || Charges <= 0 || Now - LastRequestTime < GetGunData()->FireInterval)
 	{
 		return;
 	}
 	LastRequestTime = Now;
 
-	ServerFire();
+	// 내 화면에서 보고 있는 그대로를 서버에 보낸다
+	FVector EyeLocation;
+	FRotator AimRotation;
+	Character->GetActorEyesViewPoint(EyeLocation, AimRotation);
+	const FVector AimDirection = AimRotation.Vector();
+
+	ServerFire(EyeLocation, AimDirection);
+
+	// 연출용 탄은 서버 응답을 기다리지 않고 바로 띄운다. 착탄 지점은 내 화면 기준 예측값이다.
+	float BurstDistance = 0.f;
+	const FVector BurstLocation = FindBurstLocation(Character, EyeLocation, AimDirection, BurstDistance);
+	SpawnShotVisual(EyeLocation + AimDirection * FMath::Min(MuzzleOffset, BurstDistance * 0.5f), BurstLocation);
+
 	OnFired.Broadcast();
 }
 
-void UPungAirGunComponent::ServerFire_Implementation()
+void UPungAirGunComponent::ServerFire_Implementation(FVector_NetQuantize10 ClientEyeLocation, FVector_NetQuantizeNormal ClientAimDirection)
 {
-	Fire();
+	Fire(ClientEyeLocation, ClientAimDirection);
 }
 
-void UPungAirGunComponent::Fire()
+void UPungAirGunComponent::Fire(const FVector& ClientEyeLocation, const FVector& ClientAimDirection)
 {
 	APungCharacter* Character = GetOwner<APungCharacter>();
 	const UPungAirGunData* Data = GetGunData();
@@ -93,10 +107,17 @@ void UPungAirGunComponent::Fire()
 	// 총을 쏘면 리스폰 무적이 즉시 풀린다 (GDD §5.4)
 	Character->SetInvulnerable(false);
 
-	FVector EyeLocation;
-	FRotator AimRotation;
-	Character->GetActorEyesViewPoint(EyeLocation, AimRotation);
-	const FVector AimDirection = AimRotation.Vector();
+	// 조준은 쏜 사람 화면 기준이다. 서버의 컨트롤 회전은 이동 패킷을 따라 늦게 오므로,
+	// 그걸 쓰면 빠르게 돌면서 쏠 때 몇 프레임 전 방향으로 판정된다.
+	FVector AimDirection = ClientAimDirection.GetSafeNormal();
+	if (AimDirection.IsNearlyZero())
+	{
+		FVector ServerEyeLocation;
+		FRotator ServerAimRotation;
+		Character->GetActorEyesViewPoint(ServerEyeLocation, ServerAimRotation);
+		AimDirection = ServerAimRotation.Vector();
+	}
+	const FVector EyeLocation = ValidateEyeLocation(Character, ClientEyeLocation);
 
 	// 판정은 지금 이 순간 끝낸다. 비행 시간 동안 몸이 움직여 폭발 위치가 어긋나는 일이 없다.
 	float BurstDistance = 0.f;
@@ -106,6 +127,39 @@ void UPungAirGunComponent::Fire()
 	// 연출용 탄은 눈 앞에서 나타나 착탄 지점까지 날아간다
 	const FVector VisualStart = EyeLocation + AimDirection * FMath::Min(MuzzleOffset, BurstDistance * 0.5f);
 	MulticastShotFired(VisualStart, BurstLocation);
+}
+
+FVector UPungAirGunComponent::ValidateEyeLocation(const APungCharacter* Shooter, const FVector& ClientEyeLocation) const
+{
+	FVector ServerEyeLocation;
+	FRotator ServerAimRotation;
+	Shooter->GetActorEyesViewPoint(ServerEyeLocation, ServerAimRotation);
+
+	// 지연 동안 움직인 만큼은 인정하되, 허용 오차 밖이면 서버 위치 쪽으로 잘라낸다
+	const FVector Error = ClientEyeLocation - ServerEyeLocation;
+	if (Error.IsNearlyZero())
+	{
+		return ServerEyeLocation;
+	}
+
+	if (Error.SizeSquared() > FMath::Square(MaxEyeLocationError))
+	{
+		UE_LOG(LogPung, Verbose, TEXT("[사격] '%s' 눈 위치 오차 %.0fcm 가 허용치(%.0fcm)를 넘어 잘라냄"), *GetNameSafe(Shooter), Error.Size(), MaxEyeLocationError);
+	}
+	const FVector Offset = Error.GetClampedToMaxSize(MaxEyeLocationError);
+
+	// 서버 눈 위치에서 클라이언트 눈 위치 사이에 벽이 있으면 벽 너머 사격이 되므로 서버 위치를 쓴다
+	const FVector Candidate = ServerEyeLocation + Offset;
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(PungAirGunEyeCheck), false, Shooter);
+	FCollisionObjectQueryParams ObjectParams;
+	ObjectParams.AddObjectTypesToQuery(ECC_WorldStatic);
+	ObjectParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+	if (GetWorld()->LineTraceTestByObjectType(ServerEyeLocation, Candidate, ObjectParams, Params))
+	{
+		return ServerEyeLocation;
+	}
+
+	return Candidate;
 }
 
 FVector UPungAirGunComponent::FindBurstLocation(const APungCharacter* Shooter, const FVector& EyeLocation, const FVector& AimDirection, float& OutDistance) const
@@ -232,6 +286,18 @@ void UPungAirGunComponent::ApplyBlast(const FVector& Origin, APungCharacter* Sho
 }
 
 void UPungAirGunComponent::MulticastShotFired_Implementation(FVector_NetQuantize Start, FVector_NetQuantize End)
+{
+	// 쏜 사람은 발사 요청 때 이미 직접 띄웠다 (리슨 서버 호스트 포함)
+	const APawn* OwnerPawn = GetOwner<APawn>();
+	if (OwnerPawn && OwnerPawn->IsLocallyControlled())
+	{
+		return;
+	}
+
+	SpawnShotVisual(Start, End);
+}
+
+void UPungAirGunComponent::SpawnShotVisual(const FVector& Start, const FVector& End) const
 {
 	if (GetNetMode() == NM_DedicatedServer || !ProjectileClass)
 	{

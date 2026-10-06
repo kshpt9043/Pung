@@ -24,6 +24,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FPungAirGunChargesChangedSignature,
  *    - 최대 사거리 끝 (공중 폭발)
  *
  *  발사와 충전은 서버 권한이며, 소유 클라이언트는 발사를 "요청"만 한다.
+ *  조준(눈 위치, 방향)은 쏜 사람 화면 기준으로 보내고, 서버는 허용 오차 안에서 받아들인다.
+ *  연출용 탄은 쏜 사람 화면에서 바로 띄우고, 다른 머신에는 서버가 멀티캐스트로 띄운다.
  */
 UCLASS(ClassGroup=(Pung), meta=(BlueprintSpawnableComponent))
 class PUNG_API UPungAirGunComponent : public UActorComponent
@@ -60,19 +62,26 @@ protected:
 
 	virtual void BeginPlay() override;
 
+	/** 클라이언트가 보낸 조준 정보로 발사를 요청한다 */
 	UFUNCTION(Server, Reliable)
-	void ServerFire();
+	void ServerFire(FVector_NetQuantize10 ClientEyeLocation, FVector_NetQuantizeNormal ClientAimDirection);
 
 	/** 서버: 탄 하나를 소모하고 착탄 지점을 정해 폭발시킨다 */
-	void Fire();
+	void Fire(const FVector& ClientEyeLocation, const FVector& ClientAimDirection);
 
-	/** 서버: 눈 위치에서 조준 방향으로 착탄 지점을 찾는다 */
+	/** 서버: 클라이언트가 보낸 눈 위치를 허용 오차 안으로 제한한다. 벽 너머 위치는 받아들이지 않는다. */
+	FVector ValidateEyeLocation(const APungCharacter* Shooter, const FVector& ClientEyeLocation) const;
+
+	/** 이 머신에 연출용 탄을 띄운다 */
+	void SpawnShotVisual(const FVector& Start, const FVector& End) const;
+
+	/** 눈 위치에서 조준 방향으로 착탄 지점을 찾는다. 서버는 판정에, 소유 클라이언트는 연출 예측에 쓴다. */
 	FVector FindBurstLocation(const APungCharacter* Shooter, const FVector& EyeLocation, const FVector& AimDirection, float& OutDistance) const;
 
 	/** 서버: Origin 에서 폭발해 범위 안의 캐릭터를 밀어낸다 */
 	void ApplyBlast(const FVector& Origin, APungCharacter* Shooter) const;
 
-	/** 모든 머신에 연출용 탄을 띄운다 */
+	/** 쏜 사람을 제외한 모든 머신에 연출용 탄을 띄운다 (쏜 사람은 이미 직접 띄웠다) */
 	UFUNCTION(NetMulticast, Unreliable)
 	void MulticastShotFired(FVector_NetQuantize Start, FVector_NetQuantize End);
 
@@ -95,6 +104,14 @@ protected:
 	/** 연출용 탄이 나타나는 위치 (눈 앞 거리). 착탄 지점이 더 가까우면 그 중간에서 나타난다. */
 	UPROPERTY(EditAnywhere, Category="Air Gun", meta=(ClampMin="0", Units="cm"))
 	float MuzzleOffset = 60.f;
+
+	/**
+	 *  클라이언트가 보낸 눈 위치와 서버가 아는 눈 위치의 최대 허용 차이.
+	 *  지연 동안 몸이 움직인 만큼은 받아주되, 그 이상은 서버 위치 쪽으로 잘라낸다.
+	 *  넉백으로 빠르게 날아가는 중에도 맞도록 넉넉하게 잡는다.
+	 */
+	UPROPERTY(EditAnywhere, Category="Air Gun|Network", meta=(ClampMin="0", Units="cm"))
+	float MaxEyeLocationError = 200.f;
 
 	UPROPERTY(ReplicatedUsing=OnRep_Charges)
 	int32 Charges = 0;
