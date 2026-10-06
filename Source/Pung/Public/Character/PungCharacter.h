@@ -79,6 +79,14 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Knockback", meta=(ClampMin="0", ClampMax="1"))
 	float KnockedAirborneInputScale = 0.15f;
 
+	/**
+	 *  연타 누적 상한. 남에게 맞아 얻는 수평 속도가 "이번 한 방의 수평 속도 × 이 배율" 을 넘지 않는다.
+	 *  한 방만 맞으면 영향이 없고, 공중에서 연달아 맞을 때 속도가 끝없이 쌓이는 것만 막는다.
+	 *  배율이라 과충전, 펄스처럼 센 한 방도 그대로 살아 있다. 로켓 점프(자기 넉백)에는 적용하지 않는다. 0 이면 상한 없음.
+	 */
+	UPROPERTY(EditAnywhere, Category="Knockback", meta=(ClampMin="0"))
+	float KnockbackStackLimitScale = 1.6f;
+
 	/** 내 폭발(로켓 점프)로 떴을 때도 착지할 때까지 입력을 줄일지. 끄면 로켓 점프 중 공중 제어가 그대로다. */
 	UPROPERTY(EditAnywhere, Category="Knockback")
 	bool bReduceAirControlOnSelfKnockback = false;

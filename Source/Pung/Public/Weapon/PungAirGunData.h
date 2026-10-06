@@ -47,7 +47,7 @@ public:
 
 	/** 기준 넉백 세기 (폭발 중심에서 받는 속도 변화량). 자기 넉백에 그대로 쓰인다. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Blast", meta=(ClampMin="0", Units="cm/s"))
-	float KnockbackStrength = 1500.f;
+	float KnockbackStrength = 2120.f;
 
 	/** 폭발 반경 끝에서 받는 힘의 비율 (중심 힘 대비) */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Blast", meta=(ClampMin="0", ClampMax="1"))

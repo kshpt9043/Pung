@@ -65,6 +65,8 @@ APungCharacter::APungCharacter(const FObjectInitializer& ObjectInitializer)
 	UCharacterMovementComponent* Movement = GetCharacterMovement();
 	Movement->AirControl = 0.3f;
 	Movement->BrakingDecelerationFalling = 0.f;
+	// 중력을 세게 해서 같은 거리를 더 빨리, 묵직하게 날아가게 한다 (넉백 세기와 점프 속도를 같이 올려 높이와 거리는 유지)
+	Movement->GravityScale = 2.f;
 }
 
 void APungCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -278,6 +280,21 @@ void APungCharacter::LaunchFromKnockback(const FVector& Knockback, bool bSelf)
 	if (Knockback.Z > 0.f && GetVelocity().Z < 0.f)
 	{
 		NewVelocity.Z = Knockback.Z;
+	}
+
+	// 연타 누적 상한: 공중에서 연달아 맞아도 수평 속도가 한 방의 일정 배율을 넘지 않게 한다.
+	// 원래 그보다 빨랐다면(달리기 등) 그 속도까지는 깎지 않는다.
+	if (!bSelf && KnockbackStackLimitScale > 0.f)
+	{
+		const float HitHorizontal = Knockback.Size2D();
+		const float Limit = FMath::Max(HitHorizontal * KnockbackStackLimitScale, GetVelocity().Size2D());
+		const FVector Horizontal(NewVelocity.X, NewVelocity.Y, 0.f);
+		if (HitHorizontal > KINDA_SMALL_NUMBER && Horizontal.Size() > Limit)
+		{
+			const FVector Clamped = Horizontal.GetSafeNormal() * Limit;
+			NewVelocity.X = Clamped.X;
+			NewVelocity.Y = Clamped.Y;
+		}
 	}
 
 	LaunchCharacter(NewVelocity, true, true);

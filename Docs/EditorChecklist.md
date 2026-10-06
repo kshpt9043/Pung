@@ -49,6 +49,8 @@
   - [ ] Character Movement 값이 C++ 초기값과 같은지 (BP 에 예전 값이 남아 있을 수 있음)
     - Air Control = 0.3
     - Braking Deceleration Falling = 0
+    - Gravity Scale = 2 (C++ 기본값. **맵 World Settings 의 Override World Gravity 는 꺼야 한다.** 켜 두면 중력이 겹쳐 4배가 된다)
+    - Jump Z Velocity = 원래 값 × 1.41 (중력 2배에 맞춘 값)
   - [ ] `Air Gun`, `Items` 컴포넌트가 보이는지
   - [ ] First Person Mesh (팔) 에 스켈레탈 메시와 애님 BP
   - [ ] Mesh (3인칭 몸, 다른 사람에게 보임) 에 스켈레탈 메시와 애님 BP
@@ -92,7 +94,7 @@
 
 - [ ] `DA_AirGunData` 만들기 (Data Asset → `PungAirGunData`). 값은 GDD §10 그대로 두고 시작
   - Max Range 4000, Proximity Fuse Radius 130, Visual Projectile Speed 2500
-  - Blast Radius 300, Knockback Strength 1500, Edge Strength Scale 0.25
+  - Blast Radius 300, Knockback Strength 2120 (에디터 표시 21.2 m/s), Edge Strength Scale 0.25
   - Other Blast Radius Scale 1.6, Other Knockback Scale 0.82
   - Max Charges 3, Recharge Time 1.5, Fire Interval 0.12 (원작 연사 감각으로 변경)
 - [ ] `BP_PungCharacter` → Air Gun → Gun Data 에 지정 (§2)
