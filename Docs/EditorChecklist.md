@@ -234,7 +234,12 @@
 
 전체 목록은 GDD §10.5 "UI 에서 쓸 데이터" 표. 만들 것:
 
-> **최소 HUD 는 `Docs/UIGuide.md` 를 따라 하면 된다.** C++ 부모 위젯 `PungHUDWidget` 이 이벤트 연결과 리스폰 후 재연결을 해 준다.
+> **최소 HUD 는 C++ 이 값을 채운다 (BindWidget).** WBP 에서 정해진 이름으로 위젯을 배치하기만 하면 된다. 필수 위젯이 없으면 WBP 컴파일 에러가 난다.
+> - `WBP_PungHUD` (부모 `PungHUDWidget`): TimerText, ChargeBox, KillFeedBox, DeathPanel, ScoreboardPanel, ScoreboardList, ResultPanel (필수) / RechargeBar, InvulnerableText, ItemBox, SpectateText, RespawnText, ResultText (선택)
+> - `WBP_KillFeedEntry` (부모 `PungKillFeedEntryWidget`): MessageText
+> - `WBP_ScoreboardRow` (부모 `PungScoreboardRowWidget`): NameText, KillsText, DeathsText (필수) / RankText, LocalHighlight (선택)
+> - `WBP_ItemSlot` (부모 `PungItemSlotWidget`): IconImage (필수) / InfoText, TimeBar (선택)
+> - `WBP_PungHUD` Class Defaults 에서 Kill Feed Entry Class, Scoreboard Row Class, Item Slot Class 지정
 
 - [ ] HUD 위젯을 화면에 붙이기: `WBP_PungHUD` (부모 `PungHUDWidget`) 를 만들어 `BP_PungPlayerController` → UI → **HUD Widget Class** 에 지정 (내 화면에만 자동 생성)
 - [ ] 점수판 키: `IA_Scoreboard` (Tab) 를 `BP_PungPlayerController` → UI → **Scoreboard Action** 에 지정
