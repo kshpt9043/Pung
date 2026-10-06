@@ -165,14 +165,19 @@
      ├─ Sequence  [Decorator: Blackboard  bInDanger Is Set, Observer Aborts = Lower Priority]
      │   ├─ Pung Find Safe Location  (Location Key = MoveLocation)
      │   └─ Move To  (MoveLocation)
-     ├─ Sequence  [Decorator: Blackboard  TargetActor Is Set, Observer Aborts = Lower Priority]
-     │   ├─ Selector
-     │   │   ├─ Pung Use Item          [Decorator: Is At Location (TargetActor, Acceptable Radius 600)]
-     │   │   │                          (펄스는 가까울 때만. 없거나 멀면 실패하고 아래로)
-     │   │   └─ Sequence [Decorator: Pung Has Charge]
-     │   │       ├─ Pung Aim And Fire  (Target Key = TargetActor)
-     │   │       └─ Wait 0.3
-     │   └─ (선택) Move To TargetActor (Acceptable Radius 800) — 다가가기
+     ├─ Selector  [Decorator: Blackboard  TargetActor Is Set, Observer Aborts = Lower Priority]
+     │   ├─ Pung Use Item          [Decorator: Is At Location (TargetActor, Acceptable Radius 600)]
+     │   │                          (펄스는 가까울 때만. 없거나 멀면 실패하고 아래로)
+     │   ├─ Simple Parallel        [Decorator: Pung Has Charge]   ← 쏘면서 움직이기
+     │   │   ├─ (주 작업) Pung Aim And Fire  (Target Key = TargetActor)
+     │   │   └─ (배경)   Sequence
+     │   │                ├─ Pung Find Combat Location (Target Key = TargetActor, Location Key = CombatLocation)
+     │   │                └─ Move To (CombatLocation, Acceptable Radius 100)
+     │   │       * Simple Parallel 의 Finish Mode = Immediate (사격이 끝나면 이동도 끊고 다음 사격으로)
+     │   └─ Sequence                                               ← 탄이 없을 때: 자리 잡으며 충전 대기
+     │       ├─ Pung Find Combat Location (TargetActor → CombatLocation)
+     │       ├─ Move To (CombatLocation)
+     │       └─ Wait 0.3
      └─ Sequence   ← 배회 (적이 안 보일 때)
          ├─ Pung Find Roam Location  (Location Key = MoveLocation)
          ├─ Move To  (MoveLocation)
@@ -181,6 +186,8 @@
   - [ ] **각 Pung 노드 디테일에서 블랙보드 키를 직접 골라야 한다** (C++ 에 이름을 박지 않았다)
   - [ ] `Pung Has Charge` 는 Observer Aborts 를 쓰지 말 것 (막아 둠)
   - [ ] `Pung Use Item` 은 상대가 가까울 때만 쓰게 엔진 기본 데코레이터 **Is At Location** (키 = TargetActor) 을 붙인다
+  - [ ] 블랙보드에 **`CombatLocation` (Vector)** 키 추가 (배회용 MoveLocation 과 따로 두면 서로 덮어쓰지 않는다)
+  - [ ] 전투용 Move To 의 **Allow Strafe 켜기** — 대상을 바라본 채 옆으로 움직인다 (조준은 Pung Aim And Fire 가 대상 쪽으로 고정)
   - [ ] TargetActor 데코레이터의 **Observer Aborts = Lower Priority** — 배회 중에 적이 보이면 바로 전투로 넘어간다
   - [ ] (선택) `Pung Find Target` 의 Target Airborne Key / Target Near Edge Key 에 Bool 키를 지정하면 "뜬 상대에게만 저글 가지" 같은 조건을 BT 에서 만들 수 있다. 비워 둬도 된다
 - [ ] `BP_PungAIController` 만들기 (부모: `PungAIController`)

@@ -103,6 +103,29 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Edge", meta=(ClampMin="0", Units="cm"))
 	float SafeLocationSearchRadius = 800.f;
 
+	/** 전투 위치: 상대와 이 거리 이상 떨어진 자리 (너무 붙으면 내 폭발에 나도 밀린다) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Combat", meta=(ClampMin="0", Units="cm"))
+	float CombatRangeMin = 600.f;
+
+	/** 전투 위치: 상대와 이 거리 이하인 자리 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Combat", meta=(ClampMin="0", Units="cm"))
+	float CombatRangeMax = 1300.f;
+
+	/**
+	 *  전투 위치: "상대를 가장자리 쪽으로 미는 방향" 에 서는 것의 가중치 (m 단위 점수).
+	 *  내 쪽에서 쏘면 상대가 가장자리로 밀려 나가는 자리를 높게 친다.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Combat", meta=(ClampMin="0"))
+	float CombatPushWeight = 6.f;
+
+	/** 전투 위치: 상대보다 1m 높을 때마다 더하는 점수. 높은 곳에서는 발밑을 쏘기 쉽다. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Combat", meta=(ClampMin="0"))
+	float CombatHeightWeight = 1.f;
+
+	/** 전투 위치: 지금 위치에서 1m 멀어질 때마다 빼는 점수. 너무 멀리 돌아가지 않게. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Combat", meta=(ClampMin="0"))
+	float CombatMoveCost = 0.3f;
+
 	/** 배회: 한 번에 이동할 지점을 찾는 반경 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Roam", meta=(ClampMin="100", Units="cm"))
 	float RoamRadius = 1500.f;
