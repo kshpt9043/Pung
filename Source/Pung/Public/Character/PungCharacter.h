@@ -10,6 +10,7 @@ class UCameraComponent;
 class UInputAction;
 class UPungAirGunComponent;
 struct FInputActionValue;
+enum class EPungMatchPhase : uint8;
 
 /**
  *  Pung 플레이어 캐릭터.
@@ -54,14 +55,37 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Knockback")
 	bool bSelfKnockbackOverridesLastAttacker = false;
 
+	/** 넉백 직후 이동 입력이 약해지는 시간. 맞은 사람이 키를 눌러 넉백을 상쇄하지 못하게 한다. (웹 원작 방식) */
+	UPROPERTY(EditAnywhere, Category="Knockback", meta=(ClampMin="0", Units="s"))
+	float KnockbackControlDuration = 0.45f;
+
+	/** 넉백 직후 이동 입력에 곱하는 배율 */
+	UPROPERTY(EditAnywhere, Category="Knockback", meta=(ClampMin="0", ClampMax="1"))
+	float KnockbackControlScale = 0.1f;
+
+	/**
+	 *  땅에서 폭발을 맞아 떠오른 뒤 이 시간 안에는 점프를 받아준다 (폭발 점프 유예, 웹 원작 방식).
+	 *  "발밑 사격 → 점프" 순서로 눌러도 점프가 씹히지 않게 한다.
+	 */
+	UPROPERTY(EditAnywhere, Category="Knockback", meta=(ClampMin="0", Units="s"))
+	float BlastJumpGraceTime = 0.22f;
+
 public:
 
-	APungCharacter();
+	APungCharacter(const FObjectInitializer& ObjectInitializer);
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	/** Kill Z 아래로 떨어지거나 Kill Z 볼륨에 들어가면 호출된다. 게임 모드에 사망을 알린 뒤 제거된다. */
 	virtual void FellOutOfWorld(const UDamageType& DamageType) override;
+
+	/** 매치 단계가 바뀌었을 때 게임 상태가 호출한다. 모든 머신에서 실행된다. */
+	void HandleMatchPhaseChanged(EPungMatchPhase NewPhase);
+
+	/** 폭발 점프 유예 중이면 유예를 소모하고 true. 이동 컴포넌트가 점프할 때 호출한다. */
+	bool ConsumeBlastJumpGrace();
+
+	bool IsInBlastJumpGrace() const;
 
 	/** 매치 진행 중일 때만 이동/사격할 수 있다 */
 	UFUNCTION(BlueprintPure, Category="Pung")
@@ -86,7 +110,12 @@ public:
 
 protected:
 
+	virtual void BeginPlay() override;
+
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
+
+	/** 폭발 점프 유예 중이면 공중에서도 점프할 수 있다 */
+	virtual bool CanJumpInternal_Implementation() const override;
 
 	void MoveInput(const FInputActionValue& Value);
 	void LookInput(const FInputActionValue& Value);
@@ -132,4 +161,10 @@ protected:
 	TWeakObjectPtr<AController> LastAttacker;
 
 	double LastAttackTime = -1.0e9;
+
+	/** 이 시각(월드 시간)까지 이동 입력이 약해진다. 서버와 소유 클라이언트에서 각자 잰다. */
+	double KnockbackControlEndTime = -1.0e9;
+
+	/** 이 시각(월드 시간)까지 공중에서도 점프를 받아준다. 서버와 소유 클라이언트에서 각자 잰다. */
+	double BlastJumpGraceEndTime = -1.0e9;
 };

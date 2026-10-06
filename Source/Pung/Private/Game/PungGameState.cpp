@@ -2,6 +2,8 @@
 
 
 #include "Game/PungGameState.h"
+#include "Character/PungCharacter.h"
+#include "EngineUtils.h"
 #include "GameFramework/PlayerState.h"
 #include "Net/UnrealNetwork.h"
 
@@ -55,5 +57,11 @@ void APungGameState::MulticastPlayerFell_Implementation(APlayerState* Killer, AP
 
 void APungGameState::OnRep_MatchPhase()
 {
+	// 매치가 끝나면 모든 캐릭터의 이동을 멈춘다 (서버와 각 클라이언트에서 각자)
+	for (TActorIterator<APungCharacter> It(GetWorld()); It; ++It)
+	{
+		It->HandleMatchPhaseChanged(MatchPhase);
+	}
+
 	OnMatchPhaseChanged.Broadcast(MatchPhase);
 }
