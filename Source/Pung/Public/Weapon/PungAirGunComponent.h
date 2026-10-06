@@ -10,6 +10,33 @@ class APungAirProjectile;
 class APungCharacter;
 class UPungAirGunData;
 
+/** 폭발 한 번에 곱하는 배율. 아이템이 고친다 (GDD §3.6). 기본값은 "그대로". */
+USTRUCT(BlueprintType)
+struct FPungBlastModifiers
+{
+	GENERATED_BODY()
+
+	/** 자기 폭발(로켓 점프) 반경 배율 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="0"))
+	float SelfRadiusScale = 1.f;
+
+	/** 자기 폭발(로켓 점프) 세기 배율 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="0"))
+	float SelfStrengthScale = 1.f;
+
+	/** 남을 칠 때 반경 배율 (기본 남 반경 배율 위에 곱한다) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="0"))
+	float OtherRadiusScale = 1.f;
+
+	/** 남을 칠 때 세기 배율 (기본 남 세기 배율 위에 곱한다) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(ClampMin="0"))
+	float OtherStrengthScale = 1.f;
+
+	/** false 면 폭발이 쏜 사람 자신은 밀지 않는다 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bPushSelf = true;
+};
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FPungAirGunFiredSignature);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FPungAirGunChargesChangedSignature, int32, Charges, int32, MaxCharges);
 
@@ -43,6 +70,15 @@ public:
 
 	/** 서버 전용: 서버에서 바로 쏜다 (봇용). 판정은 사람이 쏠 때와 같다. 실제로 쐈으면 true. */
 	bool FireFromServer(const FVector& AimDirection);
+
+	/** 서버 전용: 쏘지 않고 Origin 에서 바로 폭발시킨다 (펄스 아이템 등). 이 총 주인이 민 것으로 친다. */
+	void BlastFromServer(const FVector& Origin, const FPungBlastModifiers& Modifiers);
+
+	/** 서버 전용: 탄을 가득 채운다 (드럼 탄창 아이템 등) */
+	void RefillCharges();
+
+	/** 서버 전용: 충전 속도가 바뀌었을 때 (아이템이 켜지거나 꺼질 때) 다음 충전 시각을 다시 잡는다 */
+	void RefreshRechargeRate();
 
 	UFUNCTION(BlueprintPure, Category="Air Gun")
 	int32 GetCharges() const { return Charges; }
@@ -90,7 +126,13 @@ protected:
 	FVector FindBurstLocation(const APungCharacter* Shooter, const FVector& EyeLocation, const FVector& AimDirection, float& OutDistance) const;
 
 	/** 서버: Origin 에서 폭발해 범위 안의 캐릭터를 밀어낸다 */
-	void ApplyBlast(const FVector& Origin, APungCharacter* Shooter) const;
+	void ApplyBlast(const FVector& Origin, APungCharacter* Shooter, const FPungBlastModifiers& Modifiers) const;
+
+	/** 지금 쓰는 1발 충전 시간 (아이템 배율 반영) */
+	float GetCurrentRechargeTime() const;
+
+	/** 서버: Delay 뒤에 1발 충전하도록 예약한다 */
+	void ScheduleRecharge(float Delay);
 
 	/** 폭발 지점에서 대상 캡슐이 지형에 가리지 않고 보이는지 */
 	bool HasBlastLineOfSight(const FVector& Origin, const APungCharacter* Target, const APungCharacter* Shooter) const;
@@ -136,6 +178,10 @@ protected:
 	/** 다음 탄이 충전되는 서버 시각. 가득 찼으면 0. 남은 시간은 각 머신이 계산한다. */
 	UPROPERTY(Replicated)
 	double NextChargeServerTime = 0.0;
+
+	/** 지금 진행 중인 충전 1회의 길이. 충전 게이지 진행률 계산용 (아이템으로 바뀔 수 있다). */
+	UPROPERTY(Replicated)
+	float ChargeCycleLength = 0.f;
 
 	/** 서버: 마지막으로 발사가 승인된 시각 */
 	double LastFireTime = -1.0e9;

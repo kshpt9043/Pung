@@ -109,6 +109,14 @@ protected:
 	UFUNCTION(Exec)
 	void PungRemoveBot(int32 Count = 1);
 
+	// ---------------------------------------------------------
+	// 아이템 디버그 명령 (호스트 전용)
+	// ---------------------------------------------------------
+
+	/** 아이템 데이터 에셋 이름으로 내 캐릭터에게 아이템을 준다. 예: PungGiveItem DA_Item_Pulse */
+	UFUNCTION(Exec)
+	void PungGiveItem(const FString& ItemAssetName);
+
 	/** 검색 시 Pung 방만 고를지 (0 이면 480 앱의 모든 로비가 잡힌다). 검색 자체가 되는지 확인할 때 쓴다. */
 	UFUNCTION(Exec)
 	void PungBuildFilter(bool bEnable);

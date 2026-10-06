@@ -9,6 +9,7 @@
 class UCameraComponent;
 class UInputAction;
 class UPungAirGunComponent;
+class UPungItemComponent;
 struct FInputActionValue;
 enum class EPungMatchPhase : uint8;
 
@@ -34,6 +35,10 @@ class PUNG_API APungCharacter : public ACharacter
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta=(AllowPrivateAccess="true"))
 	TObjectPtr<UPungAirGunComponent> AirGun;
 
+	/** 주운 아이템 (GDD §3.6) */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta=(AllowPrivateAccess="true"))
+	TObjectPtr<UPungItemComponent> Items;
+
 protected:
 
 	UPROPERTY(EditAnywhere, Category="Input")
@@ -50,6 +55,10 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category="Input")
 	TObjectPtr<UInputAction> FireAction;
+
+	/** 사용형 아이템 사용 (원작은 F) */
+	UPROPERTY(EditAnywhere, Category="Input")
+	TObjectPtr<UInputAction> UseItemAction;
 
 	/** false 면 자기 넉백이 "마지막으로 민 사람" 기록을 덮어쓰지 않는다 (GDD §5.2, 테스트 항목) */
 	UPROPERTY(EditAnywhere, Category="Knockback")
@@ -114,6 +123,7 @@ public:
 	USkeletalMeshComponent* GetFirstPersonMesh() const { return FirstPersonMesh; }
 	UCameraComponent* GetFirstPersonCamera() const { return FirstPersonCamera; }
 	UPungAirGunComponent* GetAirGun() const { return AirGun; }
+	UPungItemComponent* GetItems() const { return Items; }
 
 protected:
 
@@ -141,6 +151,9 @@ protected:
 
 	UFUNCTION(BlueprintCallable, Category="Input")
 	virtual void DoFire();
+
+	UFUNCTION(BlueprintCallable, Category="Input")
+	virtual void DoUseItem();
 
 	/** 넉백에 따른 속도 변화를 실제로 적용한다 (서버, 또는 서버를 따라하는 소유 클라이언트) */
 	void LaunchFromKnockback(const FVector& Knockback);

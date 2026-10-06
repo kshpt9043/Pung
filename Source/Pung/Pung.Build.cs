@@ -20,6 +20,6 @@ public class Pung : ModuleRules
 		// 봇 (AIController, BT 노드, NavMesh 조회). 공개 헤더가 BT 타입을 쓰므로 Public 에 둔다.
 		PublicDependencyModuleNames.AddRange(new string[] { "AIModule", "GameplayTasks", "NavigationSystem" });
 
-		PrivateDependencyModuleNames.AddRange(new string[] { "EngineSettings" });
+		PrivateDependencyModuleNames.AddRange(new string[] { "EngineSettings", "AssetRegistry" });
 	}
 }

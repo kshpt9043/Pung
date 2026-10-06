@@ -12,6 +12,7 @@
 #include "GameFramework/PlayerState.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "InputActionValue.h"
+#include "Item/PungItemComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "Pung.h"
 #include "TimerManager.h"
@@ -51,6 +52,7 @@ APungCharacter::APungCharacter(const FObjectInitializer& ObjectInitializer)
 	GetMesh()->FirstPersonPrimitiveType = EFirstPersonPrimitiveType::WorldSpaceRepresentation;
 
 	AirGun = CreateDefaultSubobject<UPungAirGunComponent>(TEXT("Air Gun"));
+	Items = CreateDefaultSubobject<UPungItemComponent>(TEXT("Items"));
 
 	// GDD §10 초기값. 밀려난 플레이어가 공중에서 감속되지 않고 날아가도록 공중 감속을 끈다.
 	UCharacterMovementComponent* Movement = GetCharacterMovement();
@@ -131,6 +133,7 @@ void APungCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompo
 	EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &APungCharacter::DoJumpStart);
 	EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &APungCharacter::DoJumpEnd);
 	EnhancedInputComponent->BindAction(FireAction, ETriggerEvent::Started, this, &APungCharacter::DoFire);
+	EnhancedInputComponent->BindAction(UseItemAction, ETriggerEvent::Started, this, &APungCharacter::DoUseItem);
 }
 
 void APungCharacter::MoveInput(const FInputActionValue& Value)
@@ -186,6 +189,14 @@ void APungCharacter::DoFire()
 	}
 }
 
+void APungCharacter::DoUseItem()
+{
+	if (CanAct())
+	{
+		Items->RequestUse();
+	}
+}
+
 void APungCharacter::ApplyKnockback(const FVector& Knockback, AController* InstigatorController)
 {
 	if (!HasAuthority() || bInvulnerable)
@@ -194,17 +205,21 @@ void APungCharacter::ApplyKnockback(const FVector& Knockback, AController* Insti
 	}
 
 	const bool bSelf = InstigatorController && InstigatorController == GetController();
+
+	// 닻 같은 아이템이 받는 넉백을 줄인다
+	const FVector ScaledKnockback = Knockback * Items->GetIncomingKnockbackScale(bSelf);
+
 	if (InstigatorController && (!bSelf || bSelfKnockbackOverridesLastAttacker))
 	{
 		LastAttacker = InstigatorController;
 		LastAttackTime = GetWorld()->GetTimeSeconds();
 	}
 
-	LaunchFromKnockback(Knockback);
+	LaunchFromKnockback(ScaledKnockback);
 
 	if (!IsLocallyControlled() && CVarPungKnockbackClientApply.GetValueOnGameThread())
 	{
-		ClientApplyKnockback(Knockback);
+		ClientApplyKnockback(ScaledKnockback);
 	}
 }
 
