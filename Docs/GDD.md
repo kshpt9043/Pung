@@ -200,7 +200,7 @@
 - [x] git + Git LFS 저장소 초기화, .gitignore 설정
 - [x] C++ 모듈 추가 (`Source/Pung`)
 - [x] C++ 빌드 확인 (VS 2022 Build Tools / MSVC 14.44)
-- [ ] GitHub 원격 저장소 연결
+- [x] GitHub 원격 저장소 연결 (https://github.com/kshpt9043/Pung)
 
 ### M1. 프로토타입: "2명이 서로 밀어 떨어뜨리기"
 - [x] 캐릭터: C++ 이동/카메라/입력, 넉백 수신, 무적 (사격 시 해제)
