@@ -7,6 +7,8 @@
 #include "BehaviorTree/BehaviorTreeComponent.h"
 #include "Character/PungCharacter.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
+#include "GameFramework/PlayerStart.h"
 
 namespace PungBot
 {
@@ -57,5 +59,29 @@ namespace PungBot
 			}
 		}
 		return GroundCount;
+	}
+
+	FVector GetFeetLocation(const AActor* Character)
+	{
+		return Character->GetActorLocation() - FVector(0.f, 0.f, Character->GetSimpleCollisionHalfHeight());
+	}
+
+	bool IsNearEdge(const APungCharacter* Character, const UPungBotProfile* Profile)
+	{
+		constexpr int32 Samples = 8;
+		FVector MissingDirection;
+		return CountGroundAround(Character->GetWorld(), GetFeetLocation(Character), Profile->EdgeCheckDistance, Profile->GroundProbeDepth, Character, MissingDirection, Samples) < Samples;
+	}
+
+	FVector GetArenaCenter(const UWorld* World)
+	{
+		FVector Sum = FVector::ZeroVector;
+		int32 Count = 0;
+		for (TActorIterator<APlayerStart> It(World); It; ++It)
+		{
+			Sum += It->GetActorLocation();
+			++Count;
+		}
+		return Count > 0 ? Sum / Count : FVector::ZeroVector;
 	}
 }

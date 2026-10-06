@@ -71,6 +71,9 @@ public:
 	/** 서버 전용: 서버에서 바로 쏜다 (봇용). 판정은 사람이 쏠 때와 같다. 실제로 쐈으면 true. */
 	bool FireFromServer(const FVector& AimDirection);
 
+	/** 이 방향으로 쏘면 어디서 터질지 (판정과 같은 규칙). 봇이 자기 폭발 위험을 볼 때 쓴다. */
+	FVector PredictBurstLocation(const FVector& EyeLocation, const FVector& AimDirection) const;
+
 	/** 서버 전용: 쏘지 않고 Origin 에서 바로 폭발시킨다 (펄스 아이템 등). 이 총 주인이 민 것으로 친다. */
 	void BlastFromServer(const FVector& Origin, const FPungBlastModifiers& Modifiers);
 

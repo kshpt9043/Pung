@@ -27,4 +27,13 @@ namespace PungBot
 	 *  OutMissingDirection 에는 바닥이 없는 쪽 방향의 합을 돌려준다 (수평, 정규화 안 됨).
 	 */
 	int32 CountGroundAround(const UWorld* World, const FVector& Center, float Radius, float Depth, const AActor* IgnoreActor, FVector& OutMissingDirection, int32 Samples = 8);
+
+	/** 이 캐릭터 주변(프로필의 낭떠러지 검사 거리)에 바닥이 없는 곳이 있는지. 공중이면 발밑 기준으로 본다. */
+	bool IsNearEdge(const APungCharacter* Character, const UPungBotProfile* Profile);
+
+	/** 캐릭터 발 위치 (캡슐 바닥) */
+	FVector GetFeetLocation(const AActor* Character);
+
+	/** 아레나 중심: 스폰 지점들의 평균. 스폰 지점이 없으면 원점. */
+	FVector GetArenaCenter(const UWorld* World);
 }

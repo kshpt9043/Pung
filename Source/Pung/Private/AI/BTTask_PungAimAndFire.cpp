@@ -10,6 +10,7 @@
 #include "Character/PungCharacter.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Weapon/PungAirGunComponent.h"
+#include "Weapon/PungAirGunData.h"
 
 UBTTask_PungAimAndFire::UBTTask_PungAimAndFire()
 {
@@ -95,6 +96,8 @@ EBTNodeResult::Type UBTTask_PungAimAndFire::ExecuteTask(UBehaviorTreeComponent& 
 	const ACharacter* TargetCharacter = Cast<ACharacter>(Target);
 	const bool bTargetOnGround = TargetCharacter && TargetCharacter->GetCharacterMovement()->IsMovingOnGround();
 	Memory->bAimFeet = bTargetOnGround && FMath::FRand() < Profile->FeetAimChance;
+	Memory->bJuggle = false;
+	Memory->ShotsFired = 0;
 
 	// 조준하는 동안 대상을 바라본다. 컨트롤 회전이 따라가므로 1인칭 시점도 같이 움직인다.
 	OwnerComp.GetAIOwner()->SetFocalPoint(GetAimPoint(Target, Memory->bAimFeet), EAIFocusPriority::Gameplay);
@@ -102,16 +105,41 @@ EBTNodeResult::Type UBTTask_PungAimAndFire::ExecuteTask(UBehaviorTreeComponent& 
 	return EBTNodeResult::InProgress;
 }
 
+bool UBTTask_PungAimAndFire::IsSelfBlastUnsafe(const UBehaviorTreeComponent& OwnerComp, const FVector& EyeLocation, const FVector& ShotDirection)
+{
+	const APungCharacter* Self = PungBot::GetCharacter(OwnerComp);
+	const UPungBotProfile* Profile = PungBot::GetProfile(OwnerComp);
+	if (!Self || !Profile->bCheckSelfBlastSafety)
+	{
+		return false;
+	}
+
+	// 내 폭발 범위(캡슐 표면 기준)에 내가 들어가는지
+	const UPungAirGunComponent* AirGun = Self->GetAirGun();
+	const FVector Burst = AirGun->PredictBurstLocation(EyeLocation, ShotDirection);
+	const float SelfReach = AirGun->GetGunData()->BlastRadius + Self->GetSimpleCollisionRadius();
+	const FVector Feet = PungBot::GetFeetLocation(Self);
+	const bool bInOwnBlast = FMath::PointDistToSegment(Burst, Feet, Self->GetActorLocation() * 2.f - Feet) < SelfReach;
+
+	// 가장자리가 아니면 조금 밀려도 괜찮다
+	return bInOwnBlast && PungBot::IsNearEdge(Self, Profile);
+}
+
+void UBTTask_PungAimAndFire::FinishAiming(UBehaviorTreeComponent& OwnerComp, const FAimMemory& Memory)
+{
+	FinishLatentTask(OwnerComp, Memory.ShotsFired > 0 ? EBTNodeResult::Succeeded : EBTNodeResult::Failed);
+}
+
 void UBTTask_PungAimAndFire::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, float DeltaSeconds)
 {
+	FAimMemory* Memory = CastInstanceNodeMemory<FAimMemory>(NodeMemory);
 	AActor* Target = GetTarget(OwnerComp);
 	if (!IsTargetValid(OwnerComp, Target))
 	{
-		FinishLatentTask(OwnerComp, EBTNodeResult::Failed);
+		FinishAiming(OwnerComp, *Memory);
 		return;
 	}
 
-	FAimMemory* Memory = CastInstanceNodeMemory<FAimMemory>(NodeMemory);
 	const FVector AimPoint = GetAimPoint(Target, Memory->bAimFeet);
 	OwnerComp.GetAIOwner()->SetFocalPoint(AimPoint, EAIFocusPriority::Gameplay);
 
@@ -121,18 +149,46 @@ void UBTTask_PungAimAndFire::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* 
 		return;
 	}
 
-	// 판정은 사람과 같은 즉발 판정이므로 지금 대상 위치를 그대로 노리고, 오차만 섞는다
 	APungCharacter* Self = PungBot::GetCharacter(OwnerComp);
+	UPungAirGunComponent* AirGun = Self->GetAirGun();
+	const UPungBotProfile* Profile = PungBot::GetProfile(OwnerComp);
+
+	// 저글 중인데 상대가 이미 착지했거나 탄이 없으면 그만
+	const ACharacter* TargetCharacter = Cast<ACharacter>(Target);
+	if (Memory->ShotsFired > 0 && (!TargetCharacter || !TargetCharacter->GetCharacterMovement()->IsFalling() || AirGun->GetCharges() <= 0))
+	{
+		FinishAiming(OwnerComp, *Memory);
+		return;
+	}
+
+	// 판정은 사람과 같은 즉발 판정이므로 지금 대상 위치를 그대로 노리고, 오차만 섞는다
 	FVector EyeLocation;
 	FRotator EyeRotation;
 	Self->GetActorEyesViewPoint(EyeLocation, EyeRotation);
-
-	const UPungBotProfile* Profile = PungBot::GetProfile(OwnerComp);
 	const FVector Direction = (AimPoint - EyeLocation).GetSafeNormal();
 	const FVector ShotDirection = FMath::VRandCone(Direction, FMath::DegreesToRadians(Profile->AimErrorAngle));
 
-	const bool bFired = Self->GetAirGun()->FireFromServer(ShotDirection);
-	FinishLatentTask(OwnerComp, bFired ? EBTNodeResult::Succeeded : EBTNodeResult::Failed);
+	if (IsSelfBlastUnsafe(OwnerComp, EyeLocation, ShotDirection) || !AirGun->FireFromServer(ShotDirection))
+	{
+		FinishAiming(OwnerComp, *Memory);
+		return;
+	}
+
+	++Memory->ShotsFired;
+	if (Memory->ShotsFired == 1)
+	{
+		Memory->bJuggle = FMath::FRand() < Profile->JuggleChance;
+	}
+
+	if (!Memory->bJuggle || Memory->ShotsFired >= Profile->JuggleMaxShots)
+	{
+		FinishAiming(OwnerComp, *Memory);
+		return;
+	}
+
+	// 다음 발: 뜬 상대의 몸을 노린다. 넉백은 다음 이동 틱에 적용되므로 발사 간격 뒤에 떴는지 다시 본다.
+	Memory->bAimFeet = false;
+	Memory->TimeLeft = AirGun->GetGunData()->FireInterval + Profile->JuggleExtraDelay;
 }
 
 void UBTTask_PungAimAndFire::OnTaskFinished(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTNodeResult::Type TaskResult)

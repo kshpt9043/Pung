@@ -9,6 +9,7 @@
 #include "BehaviorTree/BlackboardData.h"
 #include "Character/PungCharacter.h"
 #include "EngineUtils.h"
+#include "GameFramework/CharacterMovementComponent.h"
 
 UBTService_PungFindTarget::UBTService_PungFindTarget()
 {
@@ -18,6 +19,12 @@ UBTService_PungFindTarget::UBTService_PungFindTarget()
 	bCallTickOnSearchStart = true;
 
 	TargetKey.AddObjectFilter(this, GET_MEMBER_NAME_CHECKED(UBTService_PungFindTarget, TargetKey), AActor::StaticClass());
+	TargetAirborneKey.AddBoolFilter(this, GET_MEMBER_NAME_CHECKED(UBTService_PungFindTarget, TargetAirborneKey));
+	TargetNearEdgeKey.AddBoolFilter(this, GET_MEMBER_NAME_CHECKED(UBTService_PungFindTarget, TargetNearEdgeKey));
+
+	// 선택 키는 비워 둘 수 있다
+	TargetAirborneKey.AllowNoneAsValue(true);
+	TargetNearEdgeKey.AllowNoneAsValue(true);
 }
 
 void UBTService_PungFindTarget::InitializeFromAsset(UBehaviorTree& Asset)
@@ -27,6 +34,8 @@ void UBTService_PungFindTarget::InitializeFromAsset(UBehaviorTree& Asset)
 	if (const UBlackboardData* BlackboardAsset = GetBlackboardAsset())
 	{
 		TargetKey.ResolveSelectedKey(*BlackboardAsset);
+		TargetAirborneKey.ResolveSelectedKey(*BlackboardAsset);
+		TargetNearEdgeKey.ResolveSelectedKey(*BlackboardAsset);
 	}
 }
 
@@ -49,9 +58,12 @@ void UBTService_PungFindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 
 	const UPungBotProfile* Profile = PungBot::GetProfile(OwnerComp);
 	const FVector SelfLocation = Self->GetActorLocation();
+	const AActor* Current = Cast<AActor>(Blackboard->GetValueAsObject(TargetKey.SelectedKeyName));
 
 	APungCharacter* Best = nullptr;
-	float BestDistanceSquared = FMath::Square(Profile->MaxEngageRange);
+	float BestScore = TNumericLimits<float>::Max();
+	bool bBestAirborne = false;
+	bool bBestNearEdge = false;
 	for (TActorIterator<APungCharacter> It(Self->GetWorld()); It; ++It)
 	{
 		APungCharacter* Other = *It;
@@ -60,15 +72,36 @@ void UBTService_PungFindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 			continue;
 		}
 
-		const float DistanceSquared = FVector::DistSquared(SelfLocation, Other->GetActorLocation());
-		if (DistanceSquared >= BestDistanceSquared || !Controller->LineOfSightTo(Other))
+		const float Distance = FVector::Dist(SelfLocation, Other->GetActorLocation());
+		if (Distance >= Profile->MaxEngageRange || !Controller->LineOfSightTo(Other))
 		{
 			continue;
 		}
 
-		Best = Other;
-		BestDistanceSquared = DistanceSquared;
+		// 떨어뜨리기 좋은 상대일수록 가깝게 친다
+		const bool bAirborne = Other->GetCharacterMovement()->IsFalling();
+		const bool bNearEdge = PungBot::IsNearEdge(Other, Profile);
+		float Score = Distance;
+		Score -= bAirborne ? Profile->AirborneTargetBonus : 0.f;
+		Score -= bNearEdge ? Profile->EdgeTargetBonus : 0.f;
+		Score -= Other == Current ? Profile->KeepTargetBonus : 0.f;
+
+		if (Score < BestScore)
+		{
+			Best = Other;
+			BestScore = Score;
+			bBestAirborne = bAirborne;
+			bBestNearEdge = bNearEdge;
+		}
 	}
 
 	Blackboard->SetValueAsObject(TargetKey.SelectedKeyName, Best);
+	if (TargetAirborneKey.IsSet())
+	{
+		Blackboard->SetValueAsBool(TargetAirborneKey.SelectedKeyName, bBestAirborne);
+	}
+	if (TargetNearEdgeKey.IsSet())
+	{
+		Blackboard->SetValueAsBool(TargetNearEdgeKey.SelectedKeyName, bBestNearEdge);
+	}
 }

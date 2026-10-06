@@ -271,6 +271,12 @@ FVector UPungAirGunComponent::FindBurstLocation(const APungCharacter* Shooter, c
 	return BurstLocation;
 }
 
+FVector UPungAirGunComponent::PredictBurstLocation(const FVector& EyeLocation, const FVector& AimDirection) const
+{
+	float Distance = 0.f;
+	return FindBurstLocation(GetOwner<APungCharacter>(), EyeLocation, AimDirection, Distance);
+}
+
 void UPungAirGunComponent::BlastFromServer(const FVector& Origin, const FPungBlastModifiers& Modifiers)
 {
 	APungCharacter* Character = GetOwner<APungCharacter>();

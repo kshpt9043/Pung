@@ -8,9 +8,11 @@
 
 /**
  *  대상을 바라보며 반응 시간만큼 기다렸다가, 조준 오차를 섞어 공기총을 쏜다.
- *  상대가 땅에 있으면 프로필의 확률에 따라 발밑을 노린다 (띄워서 멀리 날리기).
- *  쐈으면 성공, 대상을 잃었거나 쏠 수 없으면 실패.
- *  반응 시간, 오차, 발밑 확률, 사거리는 봇 프로필(UPungBotProfile)을 따른다.
+ *  - 상대가 땅에 있으면 프로필의 확률에 따라 발밑을 노린다 (띄워서 멀리 날리기).
+ *  - 첫 발로 상대가 뜨면 확률에 따라 이어서 연사한다 (저글). 남은 탄과 최대 발 수까지.
+ *  - 내가 가장자리에 있는데 내 폭발 범위 안을 쏘게 되면 쏘지 않는다 (자기 폭발로 떨어지지 않게).
+ *  한 발이라도 쐈으면 성공, 대상을 잃었거나 쏠 수 없으면 실패.
+ *  수치는 봇 프로필(UPungBotProfile)을 따른다.
  */
 UCLASS(meta=(DisplayName="Pung Aim And Fire"))
 class PUNG_API UBTTask_PungAimAndFire : public UBTTaskNode
@@ -44,7 +46,19 @@ private:
 
 		/** 이번에 발밑을 노리는지 (조준 시작할 때 정한다) */
 		bool bAimFeet = false;
+
+		/** 저글(연사)을 이어갈지 (첫 발을 쏜 뒤에 정한다) */
+		bool bJuggle = false;
+
+		/** 이번 실행에서 쏜 발 수 */
+		int32 ShotsFired = 0;
 	};
+
+	/** 이 방향으로 쏘면 내 폭발로 내가 떨어질 위험이 있는지 */
+	static bool IsSelfBlastUnsafe(const UBehaviorTreeComponent& OwnerComp, const FVector& EyeLocation, const FVector& ShotDirection);
+
+	/** 이번 실행을 끝낸다. 한 발이라도 쐈으면 성공. */
+	void FinishAiming(UBehaviorTreeComponent& OwnerComp, const FAimMemory& Memory);
 
 	/** 대상과 이번 조준 방식에 맞는 조준점 */
 	static FVector GetAimPoint(const AActor* Target, bool bAimFeet);
