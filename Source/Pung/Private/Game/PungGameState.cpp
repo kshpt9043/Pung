@@ -5,6 +5,7 @@
 #include "Character/PungCharacter.h"
 #include "EngineUtils.h"
 #include "Player/PungPlayerController.h"
+#include "Player/PungPlayerState.h"
 #include "GameFramework/PlayerState.h"
 #include "Net/UnrealNetwork.h"
 
@@ -25,6 +26,49 @@ float APungGameState::GetRemainingTime() const
 	}
 
 	return FMath::Max(0.f, static_cast<float>(MatchEndServerTime - GetServerWorldTimeSeconds()));
+}
+
+TArray<APungPlayerState*> APungGameState::GetSortedPlayers() const
+{
+	TArray<APungPlayerState*> Sorted;
+	for (APlayerState* PlayerState : PlayerArray)
+	{
+		if (APungPlayerState* PungPlayerState = Cast<APungPlayerState>(PlayerState))
+		{
+			Sorted.Add(PungPlayerState);
+		}
+	}
+
+	Sorted.Sort([](const APungPlayerState& A, const APungPlayerState& B)
+	{
+		if (A.GetKills() != B.GetKills())
+		{
+			return A.GetKills() > B.GetKills();
+		}
+		if (A.GetDeaths() != B.GetDeaths())
+		{
+			return A.GetDeaths() < B.GetDeaths();
+		}
+		return A.GetPlayerName() < B.GetPlayerName();
+	});
+	return Sorted;
+}
+
+void APungGameState::NotifyScoreboardChanged()
+{
+	OnScoreboardChanged.Broadcast();
+}
+
+void APungGameState::AddPlayerState(APlayerState* PlayerState)
+{
+	Super::AddPlayerState(PlayerState);
+	NotifyScoreboardChanged();
+}
+
+void APungGameState::RemovePlayerState(APlayerState* PlayerState)
+{
+	Super::RemovePlayerState(PlayerState);
+	NotifyScoreboardChanged();
 }
 
 void APungGameState::SetMatchPhase(EPungMatchPhase NewPhase)

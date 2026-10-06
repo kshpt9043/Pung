@@ -291,6 +291,25 @@
 | `UPungBotSubsystem` | 넣은 봇 수 기억 (매치 재시작 후 복원) |
 | `BTService_PungFindTarget` 외 | 봇 BT 노드 (§7.5) |
 
+### UI 에서 쓸 데이터
+
+UI 는 UserWidget(UMG) 으로 만든다. C++ 는 아래 값과 이벤트만 제공한다. 남은 시간 값은 "끝나는 서버 시각"만 복제하고 각 머신이 계산하므로 위젯에서 매 프레임 읽어도 된다.
+
+| 화면 요소 | 어디서 | 값 / 이벤트 |
+|---|---|---|
+| 매치 남은 시간 | `APungGameState` | `GetRemainingTime()` |
+| 매치 단계, 결과 | `APungGameState` | `OnMatchPhaseChanged`, `GetMatchPhase()`, `GetWinners()` |
+| 점수판 | `APungGameState` | `GetSortedPlayers()` (킬↓, 사망↑, 이름), `OnScoreboardChanged` |
+| 킬 피드 | `APungGameState` | `OnPlayerFell(Killer, Victim)` (Killer 가 null 이면 자멸) |
+| 플레이어 기록 | `APungPlayerState` | `GetKills()`, `GetDeaths()`, `IsBot()`, `OnStatsChanged` |
+| 리스폰 카운트다운 | `APungPlayerState` | `IsWaitingToRespawn()`, `GetRespawnTimeRemaining()` |
+| 충전 수 | `UPungAirGunComponent` | `GetCharges()`, `GetMaxCharges()`, `OnChargesChanged` |
+| 충전 게이지 | `UPungAirGunComponent` | `GetRechargeProgress()` (0~1, 가득 차면 1), `GetTimeUntilNextCharge()` |
+| 발사 반동/소리 | `UPungAirGunComponent` | `OnFired` (쏜 사람 화면) |
+| 무적 표시 | `APungCharacter` | `IsInvulnerable()`, `GetInvulnerabilityTimeRemaining()` (끝 없음이면 -1) |
+| 관전 중 표시 | `APungPlayerController` | `OnSpectateChanged(관전 중, 대상)`, `IsSpectating()`, `GetSpectateTarget()` |
+| 세션 결과 | `UPungSessionSubsystem` | `OnHostComplete`, `OnFindComplete`, `OnJoinComplete`, `OnLeaveComplete`, `GetLastSearchResults()`, `GetLastJoinError()` |
+
 ---
 
 ## 11. 마일스톤
@@ -335,6 +354,7 @@
 | 2026-10-06 | 코드 주석과 로그는 한국어로 작성 |
 | 2026-10-06 | 플레이 테스트: 제자리 로켓 점프와 점프 후 로켓 점프는 의도대로 동작. 달리며 쏘면 방향이 들쭉날쭉 → 근거리 즉발 도입 |
 | 2026-10-06 | 매치 규칙 구현: 킬 판정, 리스폰, 제한 시간. 동점은 임시로 공동 우승, 매치는 맵 로드 즉시 시작 |
+| 2026-10-06 | UI 데이터: 충전 게이지, 리스폰 카운트다운, 무적 남은 시간, 정렬된 점수판과 갱신 이벤트. 남은 시간은 끝나는 서버 시각만 복제 |
 | 2026-10-06 | 리스폰 대기 중 관전: 나를 떨어뜨린 사람을 3인칭 추적, 자멸이면 아레나 전경. 클라이언트 로컬 처리 |
 | 2026-10-06 | 봇: 호스트가 직접 추가/제거, 점수는 사람과 동일, 행동은 C++ BT 노드를 에디터에서 조립. 1차는 기본 전투 |
 | 2026-10-06 | Steam 세션 도입 (Terminus 구성 재사용). 480 앱 + 빌드 태그 필터, 매치 중 참가 허용, UI 전까지 콘솔 명령 |

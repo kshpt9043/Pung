@@ -103,6 +103,10 @@ public:
 	UFUNCTION(BlueprintPure, Category="Pung")
 	bool IsInvulnerable() const { return bInvulnerable; }
 
+	/** 무적 남은 시간 (초). 무적이 아니면 0, 끝나는 시간 없이 켜져 있으면 -1. 모든 머신에서 쓸 수 있다. */
+	UFUNCTION(BlueprintPure, Category="Pung")
+	float GetInvulnerabilityTimeRemaining() const;
+
 	/** 서버 전용. 이 캐릭터를 마지막으로 민 컨트롤러와 그 시각 (월드 시간, 초) */
 	AController* GetLastAttacker() const { return LastAttacker.Get(); }
 	double GetLastAttackTime() const { return LastAttackTime; }
@@ -158,6 +162,10 @@ protected:
 
 	UPROPERTY(ReplicatedUsing=OnRep_Invulnerable)
 	bool bInvulnerable = false;
+
+	/** 무적이 끝나는 서버 시각. 끝나는 시간 없이 켜졌거나 무적이 아니면 0. */
+	UPROPERTY(Replicated)
+	double InvulnerableEndServerTime = 0.0;
 
 	FTimerHandle InvulnerabilityTimer;
 

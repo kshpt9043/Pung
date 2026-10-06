@@ -100,6 +100,15 @@ void APungGameMode::EndMatch()
 		}
 	}
 
+	// 끝났으니 리스폰은 없다. 기다리던 사람의 카운트다운을 지운다.
+	for (APlayerState* PlayerState : PungGameState->PlayerArray)
+	{
+		if (APungPlayerState* PungPlayerState = Cast<APungPlayerState>(PlayerState))
+		{
+			PungPlayerState->SetRespawnServerTime(0.0);
+		}
+	}
+
 	// 우승자를 먼저 넣어야 클라이언트가 단계 변경 알림을 받을 때 우승자 정보도 같이 있다
 	PungGameState->SetWinners(Winners);
 	PungGameState->SetMatchPhase(EPungMatchPhase::Ended);
@@ -158,6 +167,11 @@ void APungGameMode::HandleCharacterFell(APungCharacter* Victim)
 	// 매치가 끝난 뒤에는 리스폰하지 않는다
 	if (VictimController && bInProgress)
 	{
+		if (VictimState)
+		{
+			VictimState->SetRespawnServerTime(PungGameState->GetServerWorldTimeSeconds() + RespawnDelay);
+		}
+
 		FTimerHandle RespawnTimer;
 		GetWorldTimerManager().SetTimer(RespawnTimer, FTimerDelegate::CreateUObject(this, &APungGameMode::RespawnPlayer, TWeakObjectPtr<AController>(VictimController)), RespawnDelay, false);
 	}
@@ -182,6 +196,11 @@ bool APungGameMode::ShouldSpawnAtStartSpot(AController* Player)
 void APungGameMode::RestartPlayer(AController* NewPlayer)
 {
 	Super::RestartPlayer(NewPlayer);
+
+	if (APungPlayerState* State = NewPlayer ? NewPlayer->GetPlayerState<APungPlayerState>() : nullptr)
+	{
+		State->SetRespawnServerTime(0.0);
+	}
 
 	if (APungCharacter* Character = NewPlayer ? NewPlayer->GetPawn<APungCharacter>() : nullptr)
 	{

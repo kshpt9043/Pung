@@ -63,6 +63,7 @@ void APungCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLi
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(APungCharacter, bInvulnerable);
+	DOREPLIFETIME(APungCharacter, InvulnerableEndServerTime);
 }
 
 void APungCharacter::FellOutOfWorld(const UDamageType& DamageType)
@@ -285,6 +286,7 @@ void APungCharacter::SetInvulnerable(bool bNewInvulnerable, float Duration)
 	}
 
 	GetWorldTimerManager().ClearTimer(InvulnerabilityTimer);
+	InvulnerableEndServerTime = (bNewInvulnerable && Duration > 0.f) ? PungTime::GetServerTime(GetWorld()) + Duration : 0.0;
 
 	if (bNewInvulnerable && Duration > 0.f)
 	{
@@ -298,6 +300,19 @@ void APungCharacter::SetInvulnerable(bool bNewInvulnerable, float Duration)
 		// 서버에서는 OnRep 이 자동 호출되지 않으므로, 리슨 서버 호스트의 연출을 위해 직접 호출한다
 		OnRep_Invulnerable();
 	}
+}
+
+float APungCharacter::GetInvulnerabilityTimeRemaining() const
+{
+	if (!bInvulnerable)
+	{
+		return 0.f;
+	}
+	if (InvulnerableEndServerTime <= 0.0)
+	{
+		return -1.f;
+	}
+	return FMath::Max(0.f, static_cast<float>(InvulnerableEndServerTime - PungTime::GetServerTime(GetWorld())));
 }
 
 void APungCharacter::OnRep_Invulnerable()

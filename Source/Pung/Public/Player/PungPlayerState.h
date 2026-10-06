@@ -37,6 +37,17 @@ public:
 	UFUNCTION(BlueprintPure, Category="Pung")
 	bool IsBot() const { return IsABot(); }
 
+	/** 떨어져서 리스폰을 기다리는 중인지 */
+	UFUNCTION(BlueprintPure, Category="Pung")
+	bool IsWaitingToRespawn() const { return RespawnServerTime > 0.0; }
+
+	/** 리스폰까지 남은 시간 (초). 기다리는 중이 아니면 0. 리스폰 카운트다운용. */
+	UFUNCTION(BlueprintPure, Category="Pung")
+	float GetRespawnTimeRemaining() const;
+
+	/** 서버 전용. 리스폰 예정 서버 시각을 정한다. 0 이면 기다리는 중이 아님. */
+	void SetRespawnServerTime(double ServerTime);
+
 	/** 킬/사망 수가 바뀌었을 때 (점수판 갱신용). 모든 머신에서 실행된다. */
 	UPROPERTY(BlueprintAssignable, Category="Pung")
 	FPungStatsChangedSignature OnStatsChanged;
@@ -45,6 +56,13 @@ protected:
 
 	UFUNCTION()
 	void OnRep_Stats();
+
+	/** 이름이 바뀌면 점수판도 갱신한다 (봇은 생성 직후 이름이 정해진다) */
+	virtual void OnRep_PlayerName() override;
+
+	/** 리스폰 예정 서버 시각. 기다리는 중이 아니면 0. */
+	UPROPERTY(Replicated)
+	double RespawnServerTime = 0.0;
 
 	UPROPERTY(ReplicatedUsing=OnRep_Stats)
 	int32 Kills = 0;

@@ -50,6 +50,14 @@ public:
 	UFUNCTION(BlueprintPure, Category="Air Gun")
 	int32 GetMaxCharges() const;
 
+	/** 다음 탄이 충전될 때까지 남은 시간 (초). 가득 찼으면 0. 소유 클라이언트와 서버에서만 정확하다. */
+	UFUNCTION(BlueprintPure, Category="Air Gun")
+	float GetTimeUntilNextCharge() const;
+
+	/** 다음 탄 충전 진행률 (0~1). 가득 찼으면 1. 충전 게이지용. */
+	UFUNCTION(BlueprintPure, Category="Air Gun")
+	float GetRechargeProgress() const;
+
 	/** 현재 사용 중인 성능 수치. 에셋이 지정되지 않았으면 클래스 기본값을 쓴다. */
 	const UPungAirGunData* GetGunData() const;
 
@@ -124,6 +132,10 @@ protected:
 
 	UPROPERTY(ReplicatedUsing=OnRep_Charges)
 	int32 Charges = 0;
+
+	/** 다음 탄이 충전되는 서버 시각. 가득 찼으면 0. 남은 시간은 각 머신이 계산한다. */
+	UPROPERTY(Replicated)
+	double NextChargeServerTime = 0.0;
 
 	/** 서버: 마지막으로 발사가 승인된 시각 */
 	double LastFireTime = -1.0e9;

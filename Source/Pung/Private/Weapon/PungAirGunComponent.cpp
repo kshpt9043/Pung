@@ -31,6 +31,7 @@ void UPungAirGunComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>&
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME_CONDITION(UPungAirGunComponent, Charges, COND_OwnerOnly);
+	DOREPLIFETIME_CONDITION(UPungAirGunComponent, NextChargeServerTime, COND_OwnerOnly);
 }
 
 void UPungAirGunComponent::BeginPlay()
@@ -51,6 +52,25 @@ const UPungAirGunData* UPungAirGunComponent::GetGunData() const
 int32 UPungAirGunComponent::GetMaxCharges() const
 {
 	return GetGunData()->MaxCharges;
+}
+
+float UPungAirGunComponent::GetTimeUntilNextCharge() const
+{
+	if (NextChargeServerTime <= 0.0)
+	{
+		return 0.f;
+	}
+	return FMath::Max(0.f, static_cast<float>(NextChargeServerTime - PungTime::GetServerTime(GetWorld())));
+}
+
+float UPungAirGunComponent::GetRechargeProgress() const
+{
+	const float RechargeTime = GetGunData()->RechargeTime;
+	if (NextChargeServerTime <= 0.0 || RechargeTime <= 0.f)
+	{
+		return 1.f;
+	}
+	return FMath::Clamp(1.f - GetTimeUntilNextCharge() / RechargeTime, 0.f, 1.f);
 }
 
 void UPungAirGunComponent::RequestFire()
@@ -116,6 +136,7 @@ bool UPungAirGunComponent::Fire(const FVector& ClientEyeLocation, const FVector&
 	if (!World->GetTimerManager().IsTimerActive(RechargeTimer))
 	{
 		World->GetTimerManager().SetTimer(RechargeTimer, this, &UPungAirGunComponent::Recharge, Data->RechargeTime, true);
+		NextChargeServerTime = PungTime::GetServerTime(World) + Data->RechargeTime;
 	}
 
 	// 총을 쏘면 리스폰 무적이 즉시 풀린다 (GDD §5.4)
@@ -389,6 +410,12 @@ void UPungAirGunComponent::Recharge()
 	if (Charges >= MaxCharges)
 	{
 		GetWorld()->GetTimerManager().ClearTimer(RechargeTimer);
+		NextChargeServerTime = 0.0;
+	}
+	else
+	{
+		// 반복 타이머라 다음 충전은 지금부터 한 주기 뒤
+		NextChargeServerTime = PungTime::GetServerTime(GetWorld()) + GetGunData()->RechargeTime;
 	}
 }
 
