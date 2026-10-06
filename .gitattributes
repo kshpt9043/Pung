@@ -24,3 +24,4 @@
 *.ini text eol=crlf
 *.md  text
 *.uproject text eol=crlf
+*.bat text eol=crlf
