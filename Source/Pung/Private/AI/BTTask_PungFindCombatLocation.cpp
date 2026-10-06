@@ -7,6 +7,7 @@
 #include "BehaviorTree/BlackboardComponent.h"
 #include "BehaviorTree/BlackboardData.h"
 #include "Character/PungCharacter.h"
+#include "NavigationPath.h"
 #include "NavigationSystem.h"
 
 UBTTask_PungFindCombatLocation::UBTTask_PungFindCombatLocation()
@@ -70,9 +71,12 @@ EBTNodeResult::Type UBTTask_PungFindCombatLocation::ExecuteTask(UBehaviorTreeCom
 	const float EyeHeight = Self->GetActorLocation().Z - SelfFeet.Z + Self->BaseEyeHeight;
 	const float AngleOffset = FMath::FRandRange(0.f, 2.f * PI);
 
-	float BestScore = -TNumericLimits<float>::Max();
-	bool bFound = false;
-	FVector Best = FVector::ZeroVector;
+	struct FScoredCandidate
+	{
+		FVector Location;
+		float Score;
+	};
+	TArray<FScoredCandidate, TInlineAllocator<48>> Scored;
 
 	for (int32 i = 0; i < Candidates; ++i)
 	{
@@ -108,19 +112,22 @@ EBTNodeResult::Type UBTTask_PungFindCombatLocation::ExecuteTask(UBehaviorTreeCom
 		Score -= FVector::Dist(Candidate, SelfFeet) / 100.f * Profile->CombatMoveCost;
 		Score += FMath::FRandRange(0.f, 0.5f);
 
-		if (Score > BestScore)
+		Scored.Add({ Candidate, Score });
+	}
+
+	// 점수 높은 순으로, 실제로 걸어서 끝까지 갈 수 있는 첫 자리를 고른다.
+	// NavMesh 위라도 상자 위처럼 이어지지 않은 섬이면 벽 앞에서 멈춰 버리기 때문이다.
+	// 경로 찾기는 비싸므로 통과하는 곳이 나올 때까지만 검사한다.
+	Scored.Sort([](const FScoredCandidate& A, const FScoredCandidate& B) { return A.Score > B.Score; });
+	for (const FScoredCandidate& Candidate : Scored)
+	{
+		const UNavigationPath* Path = UNavigationSystemV1::FindPathToLocationSynchronously(World, SelfFeet, Candidate.Location, const_cast<APungCharacter*>(Self));
+		if (Path && Path->IsValid() && !Path->IsPartial())
 		{
-			BestScore = Score;
-			Best = Candidate;
-			bFound = true;
+			Blackboard->SetValueAsVector(LocationKey.SelectedKeyName, Candidate.Location);
+			return EBTNodeResult::Succeeded;
 		}
 	}
 
-	if (!bFound)
-	{
-		return EBTNodeResult::Failed;
-	}
-
-	Blackboard->SetValueAsVector(LocationKey.SelectedKeyName, Best);
-	return EBTNodeResult::Succeeded;
+	return EBTNodeResult::Failed;
 }

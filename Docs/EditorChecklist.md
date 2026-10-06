@@ -51,6 +51,7 @@
     - Braking Deceleration Falling = 0
     - Gravity Scale = 2 (C++ 기본값. **맵 World Settings 의 Override World Gravity 는 꺼야 한다.** 켜 두면 중력이 겹쳐 4배가 된다)
     - Jump Z Velocity = 원래 값 × 1.41 (중력 2배에 맞춘 값)
+    - **Nav Movement → Use Acceleration for Paths = 켬.** 끄면 봇이 가속도 없이 미끄러져 애님 BP 가 걷기로 인식하지 않는다
   - [ ] `Air Gun`, `Items` 컴포넌트가 보이는지
   - [ ] First Person Mesh (팔) 에 스켈레탈 메시와 애님 BP
   - [ ] Mesh (3인칭 몸, 다른 사람에게 보임) 에 스켈레탈 메시와 애님 BP
@@ -187,6 +188,7 @@
   - [ ] `Pung Has Charge` 는 Observer Aborts 를 쓰지 말 것 (막아 둠)
   - [ ] `Pung Use Item` 은 상대가 가까울 때만 쓰게 엔진 기본 데코레이터 **Is At Location** (키 = TargetActor) 을 붙인다
   - [ ] 블랙보드에 **`CombatLocation` (Vector)** 키 추가 (배회용 MoveLocation 과 따로 두면 서로 덮어쓰지 않는다)
+  - [ ] 모든 Move To 의 **Allow Partial Path 끄기** — 켜져 있으면 목적지까지 길이 없을 때 갈 수 있는 데까지 가서 벽 앞에 멈춘다. 끄면 실패하고 다음 판단으로 넘어간다
   - [ ] 전투용 Move To 의 **Allow Strafe 켜기** — 대상을 바라본 채 옆으로 움직인다 (조준은 Pung Aim And Fire 가 대상 쪽으로 고정)
   - [ ] TargetActor 데코레이터의 **Observer Aborts = Lower Priority** — 배회 중에 적이 보이면 바로 전투로 넘어간다
   - [ ] (선택) `Pung Find Target` 의 Target Airborne Key / Target Near Edge Key 에 Bool 키를 지정하면 "뜬 상대에게만 저글 가지" 같은 조건을 BT 에서 만들 수 있다. 비워 둬도 된다

@@ -203,7 +203,7 @@
   | `Pung Find Target` | Service | "거리 - 가산점" 이 가장 작은 적 → BB (Object). 가산점: 가장자리 근처, 공중에 뜸, 지금 노리는 상대. 무적 상대 제외. 선택 키: 공중 여부, 가장자리 여부 (Bool) |
   | `Pung Check Edge` | Service | 주변에 바닥 없는 곳이 있으면 → BB (Bool). 공중에서는 갱신 안 함 |
   | `Pung Aim And Fire` | Task | 반응 시간 동안 대상을 바라보다가 오차를 섞어 발사. 땅에 있는 상대는 확률로 발밑 조준. 상대가 뜨면 확률로 연사(저글). 내가 가장자리인데 내 폭발 범위 안을 쏘게 되면 안 쏨 |
-  | `Pung Find Combat Location` | Task | 대상과 싸우기 좋은 자리 → BB (Vector). 대상 주변 6~13m 고리 중: 내 발밑 안전, 대상이 보임, **내 쪽에서 쏘면 대상이 가장자리로 밀려 나가는 자리**, 높은 곳 선호, 먼 이동 회피 |
+  | `Pung Find Combat Location` | Task | 대상과 싸우기 좋은 자리 → BB (Vector). 대상 주변 6~13m 고리 중: 실제로 걸어서 갈 수 있음 (경로 검사), 내 발밑 안전, 대상이 보임, **내 쪽에서 쏘면 대상이 가장자리로 밀려 나가는 자리**, 높은 곳 선호, 먼 이동 회피 |
   | `Pung Find Roam Location` | Task | 적이 없을 때 돌아다닐 NavMesh 지점 → BB (Vector). 가장자리 제외, 아레나 중심과 차 있는 아이템 패드 쪽 선호, 최근 간 곳 회피 |
   | `Pung Find Safe Location` | Task | 낭떠러지 반대쪽, 주변에 바닥이 많은 NavMesh 지점 → BB (Vector) |
   | `Pung Has Charge` | Decorator | 충전 N발 이상이면 통과 (중단 모드 미지원) |
