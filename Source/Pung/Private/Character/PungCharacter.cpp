@@ -303,7 +303,15 @@ void APungCharacter::Landed(const FHitResult& Hit)
 
 	if (GetWorldTimerManager().IsTimerActive(TrajectoryTimer))
 	{
-		FinishTrajectory(TEXT("착지"));
+		// 거의 수평인 넉백은 뜨자마자 착지한다. 그때는 끝내지 않고 바닥에서 미끄러져 멈출 때까지 잰다.
+		if (GetWorld()->GetTimeSeconds() - TrajectoryStartTime < 0.15)
+		{
+			bTrajectoryLeftGround = false;
+		}
+		else
+		{
+			FinishTrajectory(TEXT("착지"));
+		}
 	}
 }
 
@@ -349,7 +357,7 @@ void APungCharacter::SampleTrajectory()
 	{
 		bTrajectoryLeftGround = true;
 	}
-	else if (!bTrajectoryLeftGround && GetWorld()->GetTimeSeconds() - TrajectoryStartTime > 0.3 && GetVelocity().Size2D() < 10.f)
+	else if (!bTrajectoryLeftGround && GetWorld()->GetTimeSeconds() - TrajectoryStartTime > 0.15 && GetVelocity().Size2D() < 10.f)
 	{
 		// 수평 넉백처럼 뜨지 않고 바닥에서 미끄러진 경우: 멈추면 끝낸다
 		FinishTrajectory(TEXT("미끄러져 멈춤"));
