@@ -94,7 +94,7 @@
   - Max Range 4000, Proximity Fuse Radius 130, Visual Projectile Speed 2500
   - Blast Radius 300, Knockback Strength 1500, Edge Strength Scale 0.25
   - Other Blast Radius Scale 1.6, Other Knockback Scale 0.82
-  - Max Charges 3, Recharge Time 1.5, Fire Interval 0.25
+  - Max Charges 3, Recharge Time 1.5, Fire Interval 0.12 (원작 연사 감각으로 변경)
 - [ ] `BP_PungCharacter` → Air Gun → Gun Data 에 지정 (§2)
 - [ ] `BP_PungAirProjectile` 만들기 (부모: `PungAirProjectile`)
   - [ ] 탄 외형 (작은 메시나 나이아가라) 을 Root 에 붙이기
@@ -206,6 +206,7 @@
 |---|---|
 | `pung.Debug.Blast 1` | 조준선(흰), 자기 폭발 반경(노랑), 남 폭발 반경(청록), 넉백 방향, 벽에 막힌 대상(회색). **탄이 안 보일 때도 판정 확인 가능** |
 | `pung.Knockback.ClientApply 0/1` | 넉백을 본인 화면에서도 바로 적용할지 (끊김 비교) |
+| `pung.Debug.Trajectory 1` | 점프, 로켓 점프, 넉백 뒤 비행 궤적과 "시간, 최고 높이, 수평 거리" 표시. 넉백 튜닝과 맵 치수 측정용 |
 | `PungAddBot [수]` / `PungRemoveBot [수]` | 봇 추가/제거 (호스트) |
 | `PungGiveItem <에셋 이름>` | 아이템 받기 (호스트) |
 | `PungHost [인원]` / `PungFind` / `PungJoin [번호]` / `PungLeave` / `PungInvite` / `PungSession` / `PungBuildFilter 0/1` | Steam 세션 |

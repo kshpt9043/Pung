@@ -71,5 +71,5 @@ public:
 
 	/** 연속 발사 사이의 최소 간격 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ammo", meta=(ClampMin="0", Units="s"))
-	float FireInterval = 0.25f;
+	float FireInterval = 0.12f;
 };

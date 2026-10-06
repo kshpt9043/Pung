@@ -125,9 +125,10 @@ bool UPungAirGunComponent::Fire(const FVector& ClientEyeLocation, const FVector&
 	const UPungAirGunData* Data = GetGunData();
 	UWorld* World = GetWorld();
 
-	// 클라이언트와 서버의 시간 차이 때문에 정상적인 발사가 거부되지 않도록 약간 여유를 둔다
+	// 요청이 네트워크를 거치며 간격이 들쭉날쭉해지므로, 정상적인 연사가 거부되지 않도록 여유를 둔다.
+	// 간격이 짧을수록 흔들림의 비중이 커서 넉넉히 잡는다. 탄 수는 따로 막으므로 얻는 이득은 거의 없다.
 	const double Now = World->GetTimeSeconds();
-	if (!Character || !Character->CanAct() || Charges <= 0 || Now - LastFireTime < Data->FireInterval * 0.9)
+	if (!Character || !Character->CanAct() || Charges <= 0 || Now - LastFireTime < Data->FireInterval * 0.7)
 	{
 		return false;
 	}
