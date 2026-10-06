@@ -41,6 +41,9 @@ public:
 	/** 소유 클라이언트: 충전된 탄이 있으면 서버에 발사를 요청한다 */
 	void RequestFire();
 
+	/** 서버 전용: 서버에서 바로 쏜다 (봇용). 판정은 사람이 쏠 때와 같다. 실제로 쐈으면 true. */
+	bool FireFromServer(const FVector& AimDirection);
+
 	UFUNCTION(BlueprintPure, Category="Air Gun")
 	int32 GetCharges() const { return Charges; }
 
@@ -66,8 +69,8 @@ protected:
 	UFUNCTION(Server, Reliable)
 	void ServerFire(FVector_NetQuantize10 ClientEyeLocation, FVector_NetQuantizeNormal ClientAimDirection);
 
-	/** 서버: 탄 하나를 소모하고 착탄 지점을 정해 폭발시킨다 */
-	void Fire(const FVector& ClientEyeLocation, const FVector& ClientAimDirection);
+	/** 서버: 탄 하나를 소모하고 착탄 지점을 정해 폭발시킨다. 쏠 수 없는 상태면 false. */
+	bool Fire(const FVector& ClientEyeLocation, const FVector& ClientAimDirection);
 
 	/** 서버: 클라이언트가 보낸 눈 위치를 허용 오차 안으로 제한한다. 벽 너머 위치는 받아들이지 않는다. */
 	FVector ValidateEyeLocation(const APungCharacter* Shooter, const FVector& ClientEyeLocation) const;

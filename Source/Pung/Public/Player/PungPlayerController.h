@@ -54,6 +54,18 @@ protected:
 	UFUNCTION(Exec)
 	void PungSession();
 
+	// ---------------------------------------------------------
+	// 봇 디버그 명령 (호스트 전용)
+	// ---------------------------------------------------------
+
+	/** 봇을 넣는다. 정원을 넘지 않는 만큼만 들어가고, 이후 매치에도 유지된다. 예: PungAddBot 3 */
+	UFUNCTION(Exec)
+	void PungAddBot(int32 Count = 1);
+
+	/** 봇을 뺀다. 예: PungRemoveBot 3 */
+	UFUNCTION(Exec)
+	void PungRemoveBot(int32 Count = 1);
+
 	/** 검색 시 Pung 방만 고를지 (0 이면 480 앱의 모든 로비가 잡힌다). 검색 자체가 되는지 확인할 때 쓴다. */
 	UFUNCTION(Exec)
 	void PungBuildFilter(bool bEnable);

@@ -2,7 +2,10 @@
 
 
 #include "Game/PungGameMode.h"
+#include "AI/PungAIController.h"
+#include "AI/PungBotSubsystem.h"
 #include "Character/PungCharacter.h"
+#include "EngineUtils.h"
 #include "Engine/World.h"
 #include "Engine/GameInstance.h"
 #include "Game/PungGameState.h"
@@ -17,6 +20,7 @@ APungGameMode::APungGameMode()
 	PlayerControllerClass = APungPlayerController::StaticClass();
 	PlayerStateClass = APungPlayerState::StaticClass();
 	GameStateClass = APungGameState::StaticClass();
+	BotControllerClass = APungAIController::StaticClass();
 }
 
 void APungGameMode::StartPlay()
@@ -25,6 +29,19 @@ void APungGameMode::StartPlay()
 
 	// 프로토타입: 맵이 열리면 바로 시작한다. 대기실/최소 인원은 나중에.
 	StartMatch();
+
+	// 지난 매치에 있던 봇을 다시 넣는다 (매치가 끝나면 맵을 다시 열어서 사라진다)
+	if (UPungBotSubsystem* Bots = GetGameInstance()->GetSubsystem<UPungBotSubsystem>())
+	{
+		Bots->NextBotNumber = 1;
+
+		int32 Restored = 0;
+		while (Restored < Bots->DesiredBotCount && SpawnBot())
+		{
+			++Restored;
+		}
+		Bots->DesiredBotCount = Restored;
+	}
 }
 
 void APungGameMode::PreLogin(const FString& Options, const FString& Address, const FUniqueNetIdRepl& UniqueId, FString& ErrorMessage)
@@ -170,4 +187,92 @@ void APungGameMode::RestartPlayer(AController* NewPlayer)
 	{
 		Character->SetInvulnerable(true, SpawnInvulnerabilityDuration);
 	}
+}
+
+int32 APungGameMode::GetMaxPlayers() const
+{
+	if (const UPungSessionSubsystem* Sessions = GetGameInstance()->GetSubsystem<UPungSessionSubsystem>())
+	{
+		if (Sessions->GetHostMaxPlayers() > 0)
+		{
+			return Sessions->GetHostMaxPlayers();
+		}
+	}
+	return MaxPlayersWithoutSession;
+}
+
+bool APungGameMode::SpawnBot()
+{
+	// 사람과 봇을 합쳐 정원을 넘지 않게 한다
+	if (!BotControllerClass || GameState->PlayerArray.Num() >= GetMaxPlayers())
+	{
+		return false;
+	}
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	APungAIController* Bot = GetWorld()->SpawnActor<APungAIController>(BotControllerClass, SpawnParams);
+	if (!Bot)
+	{
+		return false;
+	}
+
+	// PlayerState 는 컨트롤러가 생성될 때 만들어진다 (bWantsPlayerState)
+	if (APlayerState* State = Bot->PlayerState)
+	{
+		UPungBotSubsystem* Bots = GetGameInstance()->GetSubsystem<UPungBotSubsystem>();
+		const int32 Number = Bots ? Bots->NextBotNumber++ : GameState->PlayerArray.Num();
+		State->SetIsABot(true);
+		State->SetPlayerName(FString::Printf(TEXT("Bot %d"), Number));
+	}
+
+	RestartPlayer(Bot);
+
+	UE_LOG(LogPung, Log, TEXT("[봇] %s 추가"), Bot->PlayerState ? *Bot->PlayerState->GetPlayerName() : *Bot->GetName());
+	return true;
+}
+
+int32 APungGameMode::AddBots(int32 Count)
+{
+	int32 Added = 0;
+	while (Added < Count && SpawnBot())
+	{
+		++Added;
+	}
+
+	if (UPungBotSubsystem* Bots = GetGameInstance()->GetSubsystem<UPungBotSubsystem>())
+	{
+		Bots->DesiredBotCount += Added;
+	}
+	return Added;
+}
+
+int32 APungGameMode::RemoveBots(int32 Count)
+{
+	TArray<APungAIController*> Existing;
+	for (TActorIterator<APungAIController> It(GetWorld()); It; ++It)
+	{
+		Existing.Add(*It);
+	}
+
+	// 나중에 들어온 봇부터 뺀다
+	int32 Removed = 0;
+	for (int32 i = Existing.Num() - 1; i >= 0 && Removed < Count; --i)
+	{
+		APungAIController* Bot = Existing[i];
+		UE_LOG(LogPung, Log, TEXT("[봇] %s 제거"), Bot->PlayerState ? *Bot->PlayerState->GetPlayerName() : *Bot->GetName());
+
+		if (APawn* Pawn = Bot->GetPawn())
+		{
+			Pawn->Destroy();
+		}
+		Bot->Destroy();
+		++Removed;
+	}
+
+	if (UPungBotSubsystem* Bots = GetGameInstance()->GetSubsystem<UPungBotSubsystem>())
+	{
+		Bots->DesiredBotCount = FMath::Max(0, Bots->DesiredBotCount - Removed);
+	}
+	return Removed;
 }

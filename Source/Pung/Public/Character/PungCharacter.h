@@ -87,6 +87,9 @@ public:
 
 	bool IsInBlastJumpGrace() const;
 
+	/** 지금 이동 입력에 곱할 배율. 넉백 직후에는 KnockbackControlScale, 평소에는 1. */
+	float GetMoveInputScale() const;
+
 	/** 매치 진행 중일 때만 이동/사격할 수 있다 */
 	UFUNCTION(BlueprintPure, Category="Pung")
 	bool CanAct() const;

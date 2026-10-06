@@ -4,7 +4,9 @@
 #include "Player/PungPlayerController.h"
 #include "EnhancedInputSubsystems.h"
 #include "Engine/LocalPlayer.h"
+#include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
+#include "Game/PungGameMode.h"
 #include "InputMappingContext.h"
 #include "Online/PungSessionSubsystem.h"
 #include "Pung.h"
@@ -87,5 +89,41 @@ void APungPlayerController::PungBuildFilter(bool bEnable)
 	{
 		Sessions->bUseBuildFilter = bEnable;
 		UE_LOG(LogPung, Log, TEXT("[세션] 빌드 태그 필터: %d"), bEnable ? 1 : 0);
+	}
+}
+
+void APungPlayerController::PungAddBot(int32 Count)
+{
+	APungGameMode* GameMode = GetWorld()->GetAuthGameMode<APungGameMode>();
+	if (!GameMode)
+	{
+		UE_LOG(LogPung, Warning, TEXT("[봇] 호스트만 봇을 넣을 수 있습니다."));
+		return;
+	}
+
+	const int32 Added = GameMode->AddBots(FMath::Max(Count, 0));
+	const FString Message = FString::Printf(TEXT("[봇] %d명 추가 (정원 %d)"), Added, GameMode->GetMaxPlayers());
+	UE_LOG(LogPung, Log, TEXT("%s"), *Message);
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, Added > 0 ? FColor::Green : FColor::Yellow, Message);
+	}
+}
+
+void APungPlayerController::PungRemoveBot(int32 Count)
+{
+	APungGameMode* GameMode = GetWorld()->GetAuthGameMode<APungGameMode>();
+	if (!GameMode)
+	{
+		UE_LOG(LogPung, Warning, TEXT("[봇] 호스트만 봇을 뺄 수 있습니다."));
+		return;
+	}
+
+	const int32 Removed = GameMode->RemoveBots(FMath::Max(Count, 0));
+	const FString Message = FString::Printf(TEXT("[봇] %d명 제거"), Removed);
+	UE_LOG(LogPung, Log, TEXT("%s"), *Message);
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, Message);
 	}
 }

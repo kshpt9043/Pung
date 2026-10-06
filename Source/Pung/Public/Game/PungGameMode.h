@@ -6,6 +6,7 @@
 #include "GameFramework/GameModeBase.h"
 #include "PungGameMode.generated.h"
 
+class APungAIController;
 class APungCharacter;
 
 /**
@@ -38,6 +39,15 @@ public:
 	/** 스폰할 때마다 리스폰 무적을 건다 */
 	virtual void RestartPlayer(AController* NewPlayer) override;
 
+	/** 봇을 Count 명 넣는다. 정원을 넘지 않는 만큼만 넣고, 실제로 넣은 수를 돌려준다. 이후 매치에도 유지된다. */
+	int32 AddBots(int32 Count);
+
+	/** 봇을 Count 명 뺀다. 실제로 뺀 수를 돌려준다. */
+	int32 RemoveBots(int32 Count);
+
+	/** 정원. 세션이 있으면 세션 정원, 없으면 MaxPlayersWithoutSession. 봇도 한 자리를 차지한다. */
+	int32 GetMaxPlayers() const;
+
 protected:
 
 	void StartMatch();
@@ -47,6 +57,17 @@ protected:
 	void RestartMatch();
 
 	void RespawnPlayer(TWeakObjectPtr<AController> Controller);
+
+	/** 봇 하나를 만들어 스폰한다 */
+	bool SpawnBot();
+
+	/** 봇 컨트롤러 클래스. BT 와 난이도는 이 클래스(BP)에서 지정한다. */
+	UPROPERTY(EditDefaultsOnly, Category="Bots")
+	TSubclassOf<APungAIController> BotControllerClass;
+
+	/** 세션 없이(혼자, PIE) 열었을 때의 정원. 봇을 넣을 수 있는 상한이 된다. */
+	UPROPERTY(EditDefaultsOnly, Category="Bots", meta=(ClampMin="1"))
+	int32 MaxPlayersWithoutSession = 8;
 
 	/** 매치 제한 시간 */
 	UPROPERTY(EditDefaultsOnly, Category="Match", meta=(ClampMin="1", Units="s"))

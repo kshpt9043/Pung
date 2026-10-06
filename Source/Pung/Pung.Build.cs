@@ -17,6 +17,9 @@ public class Pung : ModuleRules
 		// 실제 Steam 연동은 .uproject 플러그인과 DefaultEngine.ini 설정으로 고른다.
 		PublicDependencyModuleNames.AddRange(new string[] { "OnlineSubsystem", "OnlineSubsystemUtils" });
 
+		// 봇 (AIController, BT 노드, NavMesh 조회). 공개 헤더가 BT 타입을 쓰므로 Public 에 둔다.
+		PublicDependencyModuleNames.AddRange(new string[] { "AIModule", "GameplayTasks", "NavigationSystem" });
+
 		PrivateDependencyModuleNames.AddRange(new string[] { "EngineSettings" });
 	}
 }

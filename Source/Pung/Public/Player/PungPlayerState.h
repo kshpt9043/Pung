@@ -33,6 +33,10 @@ public:
 	UFUNCTION(BlueprintPure, Category="Pung")
 	int32 GetDeaths() const { return Deaths; }
 
+	/** 봇인지. 점수판에서 봇 표시를 할 때 쓴다. 모든 클라이언트에 복제된다. */
+	UFUNCTION(BlueprintPure, Category="Pung")
+	bool IsBot() const { return IsABot(); }
+
 	/** 킬/사망 수가 바뀌었을 때 (점수판 갱신용). 모든 머신에서 실행된다. */
 	UPROPERTY(BlueprintAssignable, Category="Pung")
 	FPungStatsChangedSignature OnStatsChanged;

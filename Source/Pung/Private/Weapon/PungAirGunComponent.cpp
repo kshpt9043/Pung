@@ -84,7 +84,21 @@ void UPungAirGunComponent::ServerFire_Implementation(FVector_NetQuantize10 Clien
 	Fire(ClientEyeLocation, ClientAimDirection);
 }
 
-void UPungAirGunComponent::Fire(const FVector& ClientEyeLocation, const FVector& ClientAimDirection)
+bool UPungAirGunComponent::FireFromServer(const FVector& AimDirection)
+{
+	APungCharacter* Character = GetOwner<APungCharacter>();
+	if (!Character || !Character->HasAuthority())
+	{
+		return false;
+	}
+
+	FVector EyeLocation;
+	FRotator EyeRotation;
+	Character->GetActorEyesViewPoint(EyeLocation, EyeRotation);
+	return Fire(EyeLocation, AimDirection);
+}
+
+bool UPungAirGunComponent::Fire(const FVector& ClientEyeLocation, const FVector& ClientAimDirection)
 {
 	APungCharacter* Character = GetOwner<APungCharacter>();
 	const UPungAirGunData* Data = GetGunData();
@@ -94,7 +108,7 @@ void UPungAirGunComponent::Fire(const FVector& ClientEyeLocation, const FVector&
 	const double Now = World->GetTimeSeconds();
 	if (!Character || !Character->CanAct() || Charges <= 0 || Now - LastFireTime < Data->FireInterval * 0.9)
 	{
-		return;
+		return false;
 	}
 	LastFireTime = Now;
 
@@ -127,6 +141,7 @@ void UPungAirGunComponent::Fire(const FVector& ClientEyeLocation, const FVector&
 	// 연출용 탄은 눈 앞에서 나타나 착탄 지점까지 날아간다
 	const FVector VisualStart = EyeLocation + AimDirection * FMath::Min(MuzzleOffset, BurstDistance * 0.5f);
 	MulticastShotFired(VisualStart, BurstLocation);
+	return true;
 }
 
 FVector UPungAirGunComponent::ValidateEyeLocation(const APungCharacter* Shooter, const FVector& ClientEyeLocation) const
@@ -337,9 +352,10 @@ bool UPungAirGunComponent::HasBlastLineOfSight(const FVector& Origin, const APun
 
 void UPungAirGunComponent::MulticastShotFired_Implementation(FVector_NetQuantize Start, FVector_NetQuantize End)
 {
-	// 쏜 사람은 발사 요청 때 이미 직접 띄웠다 (리슨 서버 호스트 포함)
+	// 쏜 사람은 발사 요청 때 이미 직접 띄웠다 (리슨 서버 호스트 포함).
+	// 봇은 서버에서 "로컬 조종"으로 치지만 직접 띄우지 않으므로 사람일 때만 건너뛴다.
 	const APawn* OwnerPawn = GetOwner<APawn>();
-	if (OwnerPawn && OwnerPawn->IsLocallyControlled())
+	if (OwnerPawn && OwnerPawn->IsLocallyControlled() && OwnerPawn->IsPlayerControlled())
 	{
 		return;
 	}

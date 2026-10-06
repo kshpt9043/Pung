@@ -12,7 +12,8 @@ UE 5.8 (C++ + Blueprint) 1인칭 멀티플레이어 링아웃 슈터. 기획과 
 - 웹 원작(PUNG!) 에서는 로직과 설계 의도만 가져오고 수치는 옮기지 않는다 (§13).
 
 ## 코드 구조
-- `Source/Pung/Public|Private/<영역>/` (Character, Weapon, Game, Player, Online)
+- `Source/Pung/Public|Private/<영역>/` (Character, Weapon, Game, Player, Online, AI)
+- 봇 행동은 C++ 에 박지 않는다. C++ 는 BT 노드(Service/Task/Decorator)와 실행 껍데기만 만들고, BT/BB 조립은 사용자가 에디터에서 한다. BB 키는 `FBlackboardKeySelector` 로 노출해 이름을 하드코딩하지 않는다.
 - 캐릭터와 게임 로직은 C++ 중심, BP 는 에셋 지정용 얇은 껍데기.
 - 넉백, 킬 판정, 점수는 서버 권한. 리슨 서버이므로 서버에서 값을 바꿀 때 `OnRep_` 을 직접 호출해 호스트 화면도 갱신한다.
 - 무기 성능 수치는 `UPungAirGunData` 에만 둔다. 외형(스킨) 데이터는 별도 에셋으로 분리 (GDD §3.5).

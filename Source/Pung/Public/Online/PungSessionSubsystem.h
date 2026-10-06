@@ -79,6 +79,9 @@ public:
 	UFUNCTION(BlueprintPure, Category="Pung|Session")
 	FText GetLastJoinError() const { return LastJoinError; }
 
+	/** 호스트일 때 방 정원. 세션 없이 연 맵이면 0. */
+	int32 GetHostMaxPlayers() const { return HostMaxPlayers; }
+
 	/** 서버 전용. 방이 꽉 찼으면 OutError 를 채우고 false. 게임 모드의 PreLogin 에서 부른다. */
 	bool CheckJoinRequest(int32 CurrentPlayers, FString& OutError) const;
 

@@ -149,7 +149,7 @@ void APungCharacter::DoMove(float Right, float Forward)
 	if (GetController() && CanAct())
 	{
 		// 넉백 직후에는 입력이 약해진다. 입력은 소유 클라이언트에서 나오므로 여기서만 줄이면 서버도 따라간다.
-		const float Scale = GetWorld()->GetTimeSeconds() < KnockbackControlEndTime ? KnockbackControlScale : 1.f;
+		const float Scale = GetMoveInputScale();
 		AddMovementInput(GetActorRightVector(), Right * Scale);
 		AddMovementInput(GetActorForwardVector(), Forward * Scale);
 	}
@@ -243,6 +243,11 @@ void APungCharacter::LaunchFromKnockback(const FVector& Knockback)
 	LaunchCharacter(NewVelocity, true, true);
 
 	BP_OnKnockedBack(Knockback);
+}
+
+float APungCharacter::GetMoveInputScale() const
+{
+	return GetWorld()->GetTimeSeconds() < KnockbackControlEndTime ? KnockbackControlScale : 1.f;
 }
 
 bool APungCharacter::IsInBlastJumpGrace() const
