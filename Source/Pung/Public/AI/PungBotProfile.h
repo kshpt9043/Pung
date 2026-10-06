@@ -18,9 +18,21 @@ class PUNG_API UPungBotProfile : public UDataAsset
 
 public:
 
-	/** 이 거리 안의 보이는 적만 노린다 */
+	/** 인식 거리. 이 거리 안의 보이는 적만 알아채고 노린다. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Target", meta=(ClampMin="0", Units="cm"))
-	float MaxEngageRange = 2500.f;
+	float MaxEngageRange = 2000.f;
+
+	/** 시야각 (정면 기준 좌우 각도). 이 밖의 적은 근접 감지 거리 안이 아니면 알아채지 못한다. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Target", meta=(ClampMin="0", ClampMax="180", Units="deg"))
+	float SightHalfAngle = 60.f;
+
+	/** 이 거리 안이면 시야 밖(등 뒤)이라도 알아챈다 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Target", meta=(ClampMin="0", Units="cm"))
+	float CloseAwarenessRadius = 500.f;
+
+	/** 한 번 알아챈 대상은 시야 밖으로 나가도 이 시간 동안은 계속 노린다 (가려지면 바로 놓친다) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Target", meta=(ClampMin="0", Units="s"))
+	float TargetMemoryTime = 2.f;
 
 	/** 무적인 상대는 노리지 않는다 (어차피 탄이 통과한다) */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Target")
@@ -47,6 +59,13 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Aim", meta=(ClampMin="0", Units="s"))
 	float ReactionTimeMax = 0.6f;
+
+	/**
+	 *  조준 지연. 상대의 "이 시간 전 위치" 를 노린다. 사람이 움직이는 상대를 따라가며 조준할 때 생기는 늦음.
+	 *  가만히 선 상대는 그대로 맞고, 움직이는 상대는 속도에 비례해 빗나간다.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Aim", meta=(ClampMin="0", Units="s"))
+	float AimTrackingLag = 0.2f;
 
 	/** 조준 오차. 쏘는 방향이 이 각도 안에서 랜덤하게 흔들린다. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Aim", meta=(ClampMin="0", ClampMax="45", Units="deg"))

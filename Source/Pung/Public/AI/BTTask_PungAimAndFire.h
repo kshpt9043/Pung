@@ -61,7 +61,7 @@ private:
 	void FinishAiming(UBehaviorTreeComponent& OwnerComp, const FAimMemory& Memory);
 
 	/** 대상과 이번 조준 방식에 맞는 조준점 */
-	static FVector GetAimPoint(const AActor* Target, bool bAimFeet);
+	static FVector GetAimPoint(const AActor* Target, bool bAimFeet, float TrackingLag);
 
 	/** 대상이 아직 노릴 수 있는 상태인지 */
 	static bool IsTargetValid(const UBehaviorTreeComponent& OwnerComp, const AActor* Target);

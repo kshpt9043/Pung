@@ -39,6 +39,20 @@ void UBTService_PungFindTarget::InitializeFromAsset(UBehaviorTree& Asset)
 	}
 }
 
+uint16 UBTService_PungFindTarget::GetInstanceMemorySize() const
+{
+	return sizeof(FFindTargetMemory);
+}
+
+void UBTService_PungFindTarget::InitializeMemory(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTMemoryInit::Type InitType) const
+{
+	// 노드 메모리는 엔진이 채워 주지 않으므로 처음 만들 때 초기화한다
+	if (InitType == EBTMemoryInit::Initialize)
+	{
+		new (NodeMemory) FFindTargetMemory();
+	}
+}
+
 FString UBTService_PungFindTarget::GetStaticDescription() const
 {
 	return FString::Printf(TEXT("%s\n대상 키: %s"), *Super::GetStaticDescription(), *TargetKey.SelectedKeyName.ToString());
@@ -59,6 +73,12 @@ void UBTService_PungFindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 	const UPungBotProfile* Profile = PungBot::GetProfile(OwnerComp);
 	const FVector SelfLocation = Self->GetActorLocation();
 	const AActor* Current = Cast<AActor>(Blackboard->GetValueAsObject(TargetKey.SelectedKeyName));
+	FFindTargetMemory* Memory = CastInstanceNodeMemory<FFindTargetMemory>(NodeMemory);
+	const double Now = Self->GetWorld()->GetTimeSeconds();
+
+	// 바라보는 방향 (수평). 시야각 판정용.
+	const FVector ViewForward = Controller->GetControlRotation().Vector().GetSafeNormal2D();
+	const float SightCos = FMath::Cos(FMath::DegreesToRadians(Profile->SightHalfAngle));
 
 	APungCharacter* Best = nullptr;
 	float BestScore = TNumericLimits<float>::Max();
@@ -78,6 +98,16 @@ void UBTService_PungFindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 			continue;
 		}
 
+		// 알아챌 수 있는지: 시야각 안이거나, 아주 가깝거나, 최근에 본 지금 대상
+		const FVector ToOther = (Other->GetActorLocation() - SelfLocation).GetSafeNormal2D();
+		const bool bInSight = FVector::DotProduct(ViewForward, ToOther) >= SightCos;
+		const bool bClose = Distance <= Profile->CloseAwarenessRadius;
+		const bool bRemembered = Other == Current && Now - Memory->LastSeenTime <= Profile->TargetMemoryTime;
+		if (!bInSight && !bClose && !bRemembered)
+		{
+			continue;
+		}
+
 		// 떨어뜨리기 좋은 상대일수록 가깝게 친다
 		const bool bAirborne = Other->GetCharacterMovement()->IsFalling();
 		const bool bNearEdge = PungBot::IsNearEdge(Other, Profile);
@@ -93,6 +123,13 @@ void UBTService_PungFindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 			bBestAirborne = bAirborne;
 			bBestNearEdge = bNearEdge;
 		}
+	}
+
+	// 기억: 대상이 바뀌었거나 지금 실제로 보고 있으면 본 시각을 갱신한다
+	if (Best && (Best != Current || FVector::DotProduct(ViewForward, (Best->GetActorLocation() - SelfLocation).GetSafeNormal2D()) >= SightCos
+		|| FVector::Dist(SelfLocation, Best->GetActorLocation()) <= Profile->CloseAwarenessRadius))
+	{
+		Memory->LastSeenTime = Now;
 	}
 
 	Blackboard->SetValueAsObject(TargetKey.SelectedKeyName, Best);

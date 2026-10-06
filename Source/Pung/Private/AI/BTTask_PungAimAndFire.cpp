@@ -47,9 +47,10 @@ AActor* UBTTask_PungAimAndFire::GetTarget(const UBehaviorTreeComponent& OwnerCom
 	return Blackboard ? Cast<AActor>(Blackboard->GetValueAsObject(TargetKey.SelectedKeyName)) : nullptr;
 }
 
-FVector UBTTask_PungAimAndFire::GetAimPoint(const AActor* Target, bool bAimFeet)
+FVector UBTTask_PungAimAndFire::GetAimPoint(const AActor* Target, bool bAimFeet, float TrackingLag)
 {
-	const FVector Center = Target->GetActorLocation();
+	// 조준 지연: 지금이 아니라 조금 전 위치를 노린다. 움직이는 상대는 그만큼 빗나간다.
+	const FVector Center = Target->GetActorLocation() - Target->GetVelocity() * TrackingLag;
 	if (!bAimFeet)
 	{
 		return Center;
@@ -100,7 +101,7 @@ EBTNodeResult::Type UBTTask_PungAimAndFire::ExecuteTask(UBehaviorTreeComponent& 
 	Memory->ShotsFired = 0;
 
 	// 조준하는 동안 대상을 바라본다. 컨트롤 회전이 따라가므로 1인칭 시점도 같이 움직인다.
-	OwnerComp.GetAIOwner()->SetFocalPoint(GetAimPoint(Target, Memory->bAimFeet), EAIFocusPriority::Gameplay);
+	OwnerComp.GetAIOwner()->SetFocalPoint(GetAimPoint(Target, Memory->bAimFeet, Profile->AimTrackingLag), EAIFocusPriority::Gameplay);
 
 	return EBTNodeResult::InProgress;
 }
@@ -133,6 +134,7 @@ void UBTTask_PungAimAndFire::FinishAiming(UBehaviorTreeComponent& OwnerComp, con
 void UBTTask_PungAimAndFire::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, float DeltaSeconds)
 {
 	FAimMemory* Memory = CastInstanceNodeMemory<FAimMemory>(NodeMemory);
+	const UPungBotProfile* Profile = PungBot::GetProfile(OwnerComp);
 	AActor* Target = GetTarget(OwnerComp);
 	if (!IsTargetValid(OwnerComp, Target))
 	{
@@ -140,7 +142,7 @@ void UBTTask_PungAimAndFire::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* 
 		return;
 	}
 
-	const FVector AimPoint = GetAimPoint(Target, Memory->bAimFeet);
+	const FVector AimPoint = GetAimPoint(Target, Memory->bAimFeet, Profile->AimTrackingLag);
 	OwnerComp.GetAIOwner()->SetFocalPoint(AimPoint, EAIFocusPriority::Gameplay);
 
 	Memory->TimeLeft -= DeltaSeconds;
@@ -151,7 +153,6 @@ void UBTTask_PungAimAndFire::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* 
 
 	APungCharacter* Self = PungBot::GetCharacter(OwnerComp);
 	UPungAirGunComponent* AirGun = Self->GetAirGun();
-	const UPungBotProfile* Profile = PungBot::GetProfile(OwnerComp);
 
 	// 저글 중인데 상대가 이미 착지했거나 탄이 없으면 그만
 	const ACharacter* TargetCharacter = Cast<ACharacter>(Target);
