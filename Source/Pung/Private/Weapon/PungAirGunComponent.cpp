@@ -415,7 +415,14 @@ void UPungAirGunComponent::SpawnShotVisual(const FVector& Start, const FVector& 
 	if (APungAirProjectile* Visual = GetWorld()->SpawnActor<APungAirProjectile>(ProjectileClass, Start, (End - Start).Rotation(), SpawnParams))
 	{
 		const UPungAirGunData* Data = GetGunData();
-		Visual->InitShot(Start, End, Data->VisualProjectileSpeed, Data->BlastRadius);
+
+		// 먼 거리는 탄속을 올려 비행 시간 상한 안에 도착시킨다. 가까운 거리는 원래 속도라 탄이 보인다.
+		float Speed = Data->VisualProjectileSpeed;
+		if (Data->MaxVisualTravelTime > 0.f)
+		{
+			Speed = FMath::Max(Speed, FVector::Dist(Start, End) / Data->MaxVisualTravelTime);
+		}
+		Visual->InitShot(Start, End, Speed, Data->BlastRadius);
 	}
 }
 
