@@ -4,6 +4,7 @@
 #include "Game/PungGameState.h"
 #include "Character/PungCharacter.h"
 #include "EngineUtils.h"
+#include "Player/PungPlayerController.h"
 #include "GameFramework/PlayerState.h"
 #include "Net/UnrealNetwork.h"
 
@@ -52,6 +53,15 @@ void APungGameState::SetWinners(const TArray<APlayerState*>& NewWinners)
 
 void APungGameState::MulticastPlayerFell_Implementation(APlayerState* Killer, APlayerState* Victim)
 {
+	// 떨어진 사람이 이 머신의 플레이어면 관전을 시작한다
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		if (APungPlayerController* PC = Cast<APungPlayerController>(It->Get()))
+		{
+			PC->HandlePlayerFell(Killer, Victim);
+		}
+	}
+
 	OnPlayerFell.Broadcast(Killer, Victim);
 }
 

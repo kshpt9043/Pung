@@ -6,18 +6,61 @@
 #include "GameFramework/PlayerController.h"
 #include "PungPlayerController.generated.h"
 
+class APungSpectatorCamera;
 class UInputMappingContext;
 class UPungSessionSubsystem;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FPungSpectateChangedSignature, bool, bSpectating, APlayerState*, Target);
+
 /**
- *  Pung 플레이어 컨트롤러. 로컬 플레이어의 입력 매핑 컨텍스트를 등록한다.
+ *  Pung 플레이어 컨트롤러.
+ *  - 로컬 플레이어의 입력 매핑 컨텍스트 등록
+ *  - 사망 후 리스폰 대기 중 관전 카메라 (로컬에서만)
+ *  - 세션/봇 디버그 콘솔 명령
  */
 UCLASS()
 class PUNG_API APungPlayerController : public APlayerController
 {
 	GENERATED_BODY()
 
+public:
+
+	APungPlayerController();
+
+	/** 게임 상태가 누군가 떨어졌다고 알릴 때 호출한다. 내가 떨어졌으면 관전을 시작한다. 로컬 컨트롤러에서만 동작. */
+	void HandlePlayerFell(APlayerState* Killer, APlayerState* Victim);
+
+	/** 사망 후 리스폰 대기 중 관전하고 있는지 */
+	UFUNCTION(BlueprintPure, Category="Pung|Spectate")
+	bool IsSpectating() const { return SpectatorCamera != nullptr; }
+
+	/** 관전 중인 플레이어 (나를 떨어뜨린 사람). 자멸이라 전경을 보는 중이거나 관전 중이 아니면 null. */
+	UFUNCTION(BlueprintPure, Category="Pung|Spectate")
+	APlayerState* GetSpectateTarget() const;
+
+	/** 관전이 시작되거나 끝났을 때 ("관전 중: X" 표시용). Target 이 null 이면 전경. 로컬에서만 실행된다. */
+	UPROPERTY(BlueprintAssignable, Category="Pung|Spectate")
+	FPungSpectateChangedSignature OnSpectateChanged;
+
 protected:
+
+	/** 리스폰해서 새 몸을 받으면 관전을 끝낸다 */
+	virtual void SetPawn(APawn* InPawn) override;
+
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+	void StopSpectating();
+
+	/** 관전 카메라 클래스. 거리 등 수치를 바꾸려면 BP 자식 클래스를 지정한다. */
+	UPROPERTY(EditDefaultsOnly, Category="Spectate")
+	TSubclassOf<APungSpectatorCamera> SpectatorCameraClass;
+
+	/** 관전 카메라로 넘어가는 시간 */
+	UPROPERTY(EditDefaultsOnly, Category="Spectate", meta=(ClampMin="0", Units="s"))
+	float SpectateBlendTime = 0.5f;
+
+	UPROPERTY(Transient)
+	TObjectPtr<APungSpectatorCamera> SpectatorCamera;
 
 	/** 로컬 플레이어에게 추가할 입력 매핑 컨텍스트 */
 	UPROPERTY(EditAnywhere, Category="Input")

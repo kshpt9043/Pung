@@ -2,6 +2,8 @@
 
 
 #include "Player/PungPlayerController.h"
+#include "Camera/PungSpectatorCamera.h"
+#include "GameFramework/PlayerState.h"
 #include "EnhancedInputSubsystems.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/Engine.h"
@@ -10,6 +12,87 @@
 #include "InputMappingContext.h"
 #include "Online/PungSessionSubsystem.h"
 #include "Pung.h"
+
+APungPlayerController::APungPlayerController()
+{
+	SpectatorCameraClass = APungSpectatorCamera::StaticClass();
+}
+
+void APungPlayerController::HandlePlayerFell(APlayerState* Killer, APlayerState* Victim)
+{
+	if (!IsLocalController() || Victim == nullptr || Victim != PlayerState || !SpectatorCameraClass)
+	{
+		return;
+	}
+
+	// 이전 관전이 남아 있으면 정리하고 새로 시작한다
+	if (SpectatorCamera)
+	{
+		SpectatorCamera->Destroy();
+		SpectatorCamera = nullptr;
+	}
+
+	// 몸이 사라지는 자리에서 시작해 부드럽게 넘어가도록, 지금 시점 위치에 만든다
+	FVector ViewLocation;
+	FRotator ViewRotation;
+	GetPlayerViewPoint(ViewLocation, ViewRotation);
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.Owner = this;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	SpectatorCamera = GetWorld()->SpawnActor<APungSpectatorCamera>(SpectatorCameraClass, ViewLocation, ViewRotation, SpawnParams);
+	if (!SpectatorCamera)
+	{
+		return;
+	}
+
+	// 자멸이면 Killer 가 null 이라 전경을 본다
+	SpectatorCamera->StartSpectating(this, Killer);
+	SetViewTargetWithBlend(SpectatorCamera, SpectateBlendTime, VTBlend_EaseInOut, 2.f);
+
+	OnSpectateChanged.Broadcast(true, Killer);
+}
+
+APlayerState* APungPlayerController::GetSpectateTarget() const
+{
+	return SpectatorCamera ? SpectatorCamera->GetTarget() : nullptr;
+}
+
+void APungPlayerController::SetPawn(APawn* InPawn)
+{
+	Super::SetPawn(InPawn);
+
+	// 리스폰해서 새 몸을 받았다 (몸이 사라질 때는 InPawn 이 null 이라 계속 관전한다)
+	if (InPawn && SpectatorCamera)
+	{
+		StopSpectating();
+	}
+}
+
+void APungPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (SpectatorCamera)
+	{
+		SpectatorCamera->Destroy();
+		SpectatorCamera = nullptr;
+	}
+
+	Super::EndPlay(EndPlayReason);
+}
+
+void APungPlayerController::StopSpectating()
+{
+	SpectatorCamera->Destroy();
+	SpectatorCamera = nullptr;
+
+	// 보통은 빙의할 때 엔진이 새 몸으로 시점을 옮기지만, 순서가 엇갈려도 확실히 돌아오게 한다
+	if (APawn* MyPawn = GetPawn())
+	{
+		SetViewTarget(MyPawn);
+	}
+
+	OnSpectateChanged.Broadcast(false, nullptr);
+}
 
 void APungPlayerController::SetupInputComponent()
 {
