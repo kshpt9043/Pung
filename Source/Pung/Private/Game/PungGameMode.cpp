@@ -4,7 +4,9 @@
 #include "Game/PungGameMode.h"
 #include "Character/PungCharacter.h"
 #include "Engine/World.h"
+#include "Engine/GameInstance.h"
 #include "Game/PungGameState.h"
+#include "Online/PungSessionSubsystem.h"
 #include "Player/PungPlayerController.h"
 #include "Player/PungPlayerState.h"
 #include "Pung.h"
@@ -23,6 +25,23 @@ void APungGameMode::StartPlay()
 
 	// 프로토타입: 맵이 열리면 바로 시작한다. 대기실/최소 인원은 나중에.
 	StartMatch();
+}
+
+void APungGameMode::PreLogin(const FString& Options, const FString& Address, const FUniqueNetIdRepl& UniqueId, FString& ErrorMessage)
+{
+	Super::PreLogin(Options, Address, UniqueId, ErrorMessage);
+
+	// 엔진이 이미 거절했으면 그대로
+	if (!ErrorMessage.IsEmpty())
+	{
+		return;
+	}
+
+	if (const UPungSessionSubsystem* Sessions = GetGameInstance()->GetSubsystem<UPungSessionSubsystem>())
+	{
+		// GetNumPlayers 는 호스트를 포함한 지금 인원
+		Sessions->CheckJoinRequest(GetNumPlayers(), ErrorMessage);
+	}
 }
 
 void APungGameMode::StartMatch()

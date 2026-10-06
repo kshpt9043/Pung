@@ -26,6 +26,9 @@ public:
 
 	virtual void StartPlay() override;
 
+	/** 방이 꽉 찼으면 접속을 거절한다 */
+	virtual void PreLogin(const FString& Options, const FString& Address, const FUniqueNetIdRepl& UniqueId, FString& ErrorMessage) override;
+
 	/** 캐릭터가 아레나 밖으로 떨어졌을 때 캐릭터가 호출한다 */
 	void HandleCharacterFell(APungCharacter* Victim);
 
