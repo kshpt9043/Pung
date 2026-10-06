@@ -13,6 +13,9 @@ public class Pung : ModuleRules
 
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput" });
 
+		// HUD 위젯 부모 클래스 (UPungHUDWidget)
+		PublicDependencyModuleNames.AddRange(new string[] { "UMG", "Slate", "SlateCore" });
+
 		// 온라인 세션 (Steam). 공개 헤더(PungSessionSubsystem.h)가 OSS 타입을 쓰므로 Public 에 둔다.
 		// 실제 Steam 연동은 .uproject 플러그인과 DefaultEngine.ini 설정으로 고른다.
 		PublicDependencyModuleNames.AddRange(new string[] { "OnlineSubsystem", "OnlineSubsystemUtils" });

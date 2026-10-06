@@ -7,6 +7,8 @@
 #include "PungPlayerController.generated.h"
 
 class APungSpectatorCamera;
+class UInputAction;
+class UPungHUDWidget;
 class UInputMappingContext;
 class UPungSessionSubsystem;
 
@@ -47,7 +49,23 @@ protected:
 	/** 리스폰해서 새 몸을 받으면 관전을 끝낸다 */
 	virtual void SetPawn(APawn* InPawn) override;
 
+	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+	/** 점수판 키 */
+	void ShowScoreboard();
+	void HideScoreboard();
+
+	/** HUD 위젯 클래스 (WBP_PungHUD, 부모 PungHUDWidget). 지정하면 내 화면에만 자동으로 만든다. */
+	UPROPERTY(EditDefaultsOnly, Category="UI")
+	TSubclassOf<UPungHUDWidget> HUDWidgetClass;
+
+	/** 누르고 있는 동안 점수판을 보여주는 입력 (Tab) */
+	UPROPERTY(EditDefaultsOnly, Category="UI")
+	TObjectPtr<UInputAction> ScoreboardAction;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UPungHUDWidget> HUDWidget;
 
 	void StopSpectating();
 

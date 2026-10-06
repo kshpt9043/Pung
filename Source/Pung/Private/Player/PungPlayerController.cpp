@@ -3,6 +3,8 @@
 
 #include "Player/PungPlayerController.h"
 #include "Camera/PungSpectatorCamera.h"
+#include "EnhancedInputComponent.h"
+#include "UI/PungHUDWidget.h"
 #include "GameFramework/PlayerState.h"
 #include "EnhancedInputSubsystems.h"
 #include "Engine/LocalPlayer.h"
@@ -73,8 +75,45 @@ void APungPlayerController::SetPawn(APawn* InPawn)
 	}
 }
 
+void APungPlayerController::BeginPlay()
+{
+	Super::BeginPlay();
+
+	// HUD 는 내 화면에만 (리슨 서버 호스트의 다른 플레이어 컨트롤러에는 만들지 않는다)
+	if (IsLocalPlayerController() && HUDWidgetClass)
+	{
+		HUDWidget = CreateWidget<UPungHUDWidget>(this, HUDWidgetClass);
+		if (HUDWidget)
+		{
+			HUDWidget->AddToViewport();
+		}
+	}
+}
+
+void APungPlayerController::ShowScoreboard()
+{
+	if (HUDWidget)
+	{
+		HUDWidget->SetScoreboardVisible(true);
+	}
+}
+
+void APungPlayerController::HideScoreboard()
+{
+	if (HUDWidget)
+	{
+		HUDWidget->SetScoreboardVisible(false);
+	}
+}
+
 void APungPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	if (HUDWidget)
+	{
+		HUDWidget->RemoveFromParent();
+		HUDWidget = nullptr;
+	}
+
 	if (SpectatorCamera)
 	{
 		SpectatorCamera->Destroy();
@@ -112,6 +151,16 @@ void APungPlayerController::SetupInputComponent()
 		for (UInputMappingContext* Context : DefaultMappingContexts)
 		{
 			Subsystem->AddMappingContext(Context, 0);
+		}
+	}
+
+	// 점수판은 몸이 없을 때(관전 중)도 볼 수 있어야 하므로 캐릭터가 아니라 컨트롤러에서 받는다
+	if (UEnhancedInputComponent* EnhancedInput = Cast<UEnhancedInputComponent>(InputComponent))
+	{
+		if (ScoreboardAction)
+		{
+			EnhancedInput->BindAction(ScoreboardAction, ETriggerEvent::Started, this, &APungPlayerController::ShowScoreboard);
+			EnhancedInput->BindAction(ScoreboardAction, ETriggerEvent::Completed, this, &APungPlayerController::HideScoreboard);
 		}
 	}
 }

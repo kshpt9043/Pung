@@ -234,7 +234,10 @@
 
 전체 목록은 GDD §10.5 "UI 에서 쓸 데이터" 표. 만들 것:
 
-- [ ] HUD 위젯을 화면에 붙이기: `BP_PungPlayerController` 의 BeginPlay 에서 **Is Local Controller 일 때만** Create Widget → Add to Viewport
+> **최소 HUD 는 `Docs/UIGuide.md` 를 따라 하면 된다.** C++ 부모 위젯 `PungHUDWidget` 이 이벤트 연결과 리스폰 후 재연결을 해 준다.
+
+- [ ] HUD 위젯을 화면에 붙이기: `WBP_PungHUD` (부모 `PungHUDWidget`) 를 만들어 `BP_PungPlayerController` → UI → **HUD Widget Class** 에 지정 (내 화면에만 자동 생성)
+- [ ] 점수판 키: `IA_Scoreboard` (Tab) 를 `BP_PungPlayerController` → UI → **Scoreboard Action** 에 지정
 - [ ] 조준점
 - [ ] 매치 남은 시간 — GameState `Get Remaining Time`
 - [ ] 탄 충전 수와 게이지 — Air Gun `Get Charges`, `Get Max Charges`, `On Charges Changed`, `Get Recharge Progress`
