@@ -81,6 +81,9 @@ protected:
 	/** 서버: Origin 에서 폭발해 범위 안의 캐릭터를 밀어낸다 */
 	void ApplyBlast(const FVector& Origin, APungCharacter* Shooter) const;
 
+	/** 폭발 지점에서 대상 캡슐이 지형에 가리지 않고 보이는지 */
+	bool HasBlastLineOfSight(const FVector& Origin, const APungCharacter* Target, const APungCharacter* Shooter) const;
+
 	/** 쏜 사람을 제외한 모든 머신에 연출용 탄을 띄운다 (쏜 사람은 이미 직접 띄웠다) */
 	UFUNCTION(NetMulticast, Unreliable)
 	void MulticastShotFired(FVector_NetQuantize Start, FVector_NetQuantize End);
@@ -104,6 +107,9 @@ protected:
 	/** 연출용 탄이 나타나는 위치 (눈 앞 거리). 착탄 지점이 더 가까우면 그 중간에서 나타난다. */
 	UPROPERTY(EditAnywhere, Category="Air Gun", meta=(ClampMin="0", Units="cm"))
 	float MuzzleOffset = 60.f;
+
+	/** 지형에 맞았을 때 표면에서 이만큼 앞(쏜 쪽)으로 당겨서 터뜨린다 */
+	static constexpr float BurstSurfaceOffset = 5.f;
 
 	/**
 	 *  클라이언트가 보낸 눈 위치와 서버가 아는 눈 위치의 최대 허용 차이.
