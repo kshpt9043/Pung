@@ -209,6 +209,7 @@
 자세한 조립 순서는 세션 가이드를 따른다. 빠뜨리지 말 것만 적는다.
 
 - [ ] `DA_BotProfile_Smart` (Normal 복제 후: 반응 0.2~0.4초, 조준 지연 0.12초, 오차 2°, 저글 확률 0.8, Low Charge Target Bonus 700, Retaliation Target Bonus 500)
+- [ ] (임시, 선택) 등급 구분 외형: 프로필 → Debug → **Body Look** 에 Material Override 또는 Use Tint + Body Tint + Tint Parameter Name
 - [ ] 블랙보드 `BB_PungBot_Smart` (BB_PungBot 복제) 키 추가: `bThreatened` (Bool), `ThreatActor` (Object, Actor), `DodgeLocation` (Vector), `RetreatLocation` (Vector), `ItemLocation` (Vector)
 - [ ] EQS 쿼리 3개: `EQS_Pung_Attack`, `EQS_Pung_Retreat`, `EQS_Pung_Item` (배회는 기존 `Pung Find Roam Location` 재사용)
 - [ ] 비헤이비어 트리 `BT_PungBot_Smart` (블랙보드 = `BB_PungBot_Smart`)

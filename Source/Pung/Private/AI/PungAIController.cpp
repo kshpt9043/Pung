@@ -4,6 +4,7 @@
 #include "AI/PungAIController.h"
 #include "AI/PungBotProfile.h"
 #include "BehaviorTree/BehaviorTree.h"
+#include "Character/PungCharacter.h"
 #include "Pung.h"
 
 APungAIController::APungAIController()
@@ -23,6 +24,16 @@ void APungAIController::OnPossess(APawn* InPawn)
 
 	CurrentTarget.Reset();
 	CurrentThreat.Reset();
+
+	// (임시) 등급 구분용 외형
+	if (APungCharacter* PungCharacter = Cast<APungCharacter>(InPawn))
+	{
+		const UPungBotProfile* Profile = GetBotProfile();
+		if (Profile->BodyLook.IsSet())
+		{
+			PungCharacter->SetBodyLook(Profile->BodyLook);
+		}
+	}
 
 	if (!BehaviorTree)
 	{

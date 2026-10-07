@@ -12,6 +12,8 @@
 #include "GameFramework/PlayerState.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "InputActionValue.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialInterface.h"
 #include "Item/PungItemComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "Pung.h"
@@ -75,6 +77,7 @@ void APungCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLi
 
 	DOREPLIFETIME(APungCharacter, bInvulnerable);
 	DOREPLIFETIME(APungCharacter, InvulnerableEndServerTime);
+	DOREPLIFETIME(APungCharacter, BodyLook);
 }
 
 void APungCharacter::FellOutOfWorld(const UDamageType& DamageType)
@@ -477,4 +480,48 @@ float APungCharacter::GetInvulnerabilityTimeRemaining() const
 void APungCharacter::OnRep_Invulnerable()
 {
 	BP_OnInvulnerabilityChanged(bInvulnerable);
+}
+
+void APungCharacter::SetBodyLook(const FPungBodyLook& NewLook)
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+	// 리슨 서버의 호스트 화면도 갱신한다
+	BodyLook = NewLook;
+	OnRep_BodyLook();
+}
+
+void APungCharacter::OnRep_BodyLook()
+{
+	ApplyBodyLook();
+	BP_OnBodyLookChanged(BodyLook);
+}
+
+void APungCharacter::ApplyBodyLook()
+{
+	USkeletalMeshComponent* Body = GetMesh();
+	if (!Body || !BodyLook.IsSet())
+	{
+		return;
+	}
+
+	for (int32 Slot = 0; Slot < Body->GetNumMaterials(); ++Slot)
+	{
+		if (BodyLook.MaterialOverride)
+		{
+			Body->SetMaterial(Slot, BodyLook.MaterialOverride);
+		}
+
+		if (BodyLook.bUseTint)
+		{
+			// 파라미터가 없는 머티리얼이면 아무 일도 일어나지 않는다
+			if (UMaterialInstanceDynamic* Dynamic = Body->CreateDynamicMaterialInstance(Slot))
+			{
+				Dynamic->SetVectorParameterValue(BodyLook.TintParameterName, BodyLook.BodyTint);
+			}
+		}
+	}
 }

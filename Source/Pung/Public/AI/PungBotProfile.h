@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Character/PungCharacter.h"
 #include "Engine/DataAsset.h"
 #include "PungBotProfile.generated.h"
 
@@ -17,6 +18,10 @@ class PUNG_API UPungBotProfile : public UDataAsset
 	GENERATED_BODY()
 
 public:
+
+	/** (임시) 이 프로필을 쓰는 봇의 몸 외형. 등급을 눈으로 구분하는 디버그용. 비우면 기본 외형. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Debug")
+	FPungBodyLook BodyLook;
 
 	/** 인식 거리. 이 거리 안의 보이는 적만 알아채고 노린다. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Target", meta=(ClampMin="0", Units="cm"))

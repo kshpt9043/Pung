@@ -8,10 +8,38 @@
 
 class UCameraComponent;
 class UInputAction;
+class UMaterialInterface;
 class UPungAirGunComponent;
 class UPungItemComponent;
 struct FInputActionValue;
 enum class EPungMatchPhase : uint8;
+
+/**
+ *  (임시) 몸 외형 바꾸기. 봇 등급을 눈으로 구분하는 디버그용이다. 서버가 정하고 모두에게 복제된다.
+ *  정식 스킨은 별도 외형 에셋으로 만든다 (GDD §3.5).
+ */
+USTRUCT(BlueprintType)
+struct FPungBodyLook
+{
+	GENERATED_BODY()
+
+	/** 몸 메시의 모든 머티리얼 슬롯을 이것으로 바꾼다. 비우면 그대로. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Look")
+	TObjectPtr<UMaterialInterface> MaterialOverride;
+
+	/** 켜면 몸 머티리얼의 색 파라미터(TintParameterName)를 BodyTint 로 바꾼다 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Look")
+	bool bUseTint = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Look", meta=(EditCondition="bUseTint"))
+	FLinearColor BodyTint = FLinearColor(1.f, 0.2f, 0.1f);
+
+	/** 머티리얼의 벡터 파라미터 이름. 머티리얼 인스턴스를 열어 Parameter Groups 에서 확인한다. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Look", meta=(EditCondition="bUseTint"))
+	FName TintParameterName = TEXT("Tint");
+
+	bool IsSet() const { return MaterialOverride != nullptr || bUseTint; }
+};
 
 /**
  *  Pung 플레이어 캐릭터.
@@ -134,6 +162,9 @@ public:
 	UFUNCTION(BlueprintPure, Category="Pung")
 	bool IsInvulnerable() const { return bInvulnerable; }
 
+	/** 서버 전용. (임시) 몸 외형을 바꾼다. 봇 컨트롤러가 빙의할 때 프로필 값으로 호출한다. */
+	void SetBodyLook(const FPungBodyLook& NewLook);
+
 	/** 무적 남은 시간 (초). 무적이 아니면 0, 끝나는 시간 없이 켜져 있으면 -1. 모든 머신에서 쓸 수 있다. */
 	UFUNCTION(BlueprintPure, Category="Pung")
 	float GetInvulnerabilityTimeRemaining() const;
@@ -189,6 +220,19 @@ protected:
 
 	UFUNCTION()
 	void OnRep_Invulnerable();
+
+	UFUNCTION()
+	void OnRep_BodyLook();
+
+	/** 몸 메시에 BodyLook 을 적용한다 */
+	void ApplyBodyLook();
+
+	/** 연출용 훅: (임시) 몸 외형이 정해졌을 때. 모든 머신에서 실행된다. 머티리얼 대신 BP 에서 직접 꾸밀 때 쓴다. */
+	UFUNCTION(BlueprintImplementableEvent, Category="Pung", meta=(DisplayName="On Body Look Changed"))
+	void BP_OnBodyLookChanged(const FPungBodyLook& Look);
+
+	UPROPERTY(ReplicatedUsing=OnRep_BodyLook)
+	FPungBodyLook BodyLook;
 
 	/** 연출용 훅: 이 캐릭터가 밀려났을 때. 서버와 소유 클라이언트에서 실행된다. */
 	UFUNCTION(BlueprintImplementableEvent, Category="Pung", meta=(DisplayName="On Knocked Back"))
