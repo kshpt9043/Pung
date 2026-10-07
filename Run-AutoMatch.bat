@@ -6,7 +6,7 @@ REM ============================================================
 REM  Pung - 자동 대전 (봇끼리 매치 반복 + 기록 CSV)
 REM
 REM  화면 없이(-nullrhi) 봇끼리 정해진 판 수만큼 매치를 하고 스스로 종료한다.
-REM  기록: Saved\Telemetry\[실행 시각]\ (knockbacks / falls / items / matches .csv)
+REM  기록: Saved\Telemetry\[실행 시각]_[프로세스 번호]\ (knockbacks / falls / items / matches .csv)
 REM  진행 상황은 같이 뜨는 로그 창에서 [자동 대전], [기록] 으로 확인한다.
 REM  먼저 Build-Editor.bat 으로 빌드해 두어야 한다.
 REM

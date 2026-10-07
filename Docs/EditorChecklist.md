@@ -228,11 +228,12 @@
 
 ## 7.2 자동 대전과 기록 (에디터 작업 없음)
 
+- [ ] (GUI) `AutoMatch-Launcher.bat` → 봇 표, 판 수 등을 고르고 [실행]. 처음 한 번 UnrealEditor.exe 경로 확인. [기록 폴더 열기]
 - [ ] 빌드 후 `Run-AutoMatch.bat` 실행 → 로그 창에 `[자동 대전] 켜짐`, 매치마다 `[기록] 매치 N 저장`
   - 인자: `Run-AutoMatch.bat "Default:3,Smart:3" 20 120 2` (봇 구성, 판 수, 매치 초, 속도 배율)
   - 봇 구성의 등급 이름은 게임 모드 Bot Tiers 키와 같아야 한다 (없는 등급은 로그에 경고하고 빠짐)
   - 사람 1명 + 봇 합계가 정원(세션 없이 8명)을 넘지 않게. 봇은 최대 7명
-- [ ] 끝나면 `Saved/Telemetry/<실행 시각>/` 에 CSV 4개가 있는지
+- [ ] 끝나면 `Saved/Telemetry/<실행 시각>_<프로세스 번호>/` 에 CSV 4개가 있는지
 - [ ] 사람끼리 플레이도 기록하려면 콘솔 `pung.Telemetry 1` (호스트)
 - [ ] 패키징한 exe: `Pung.exe -nullrhi -nosound -nosteam -PungAutoMatch -PungBots=Default:2,Smart:2 -PungMatches=10` (기록은 exe 옆 `Pung/Saved/Telemetry`)
 

@@ -13,6 +13,7 @@
 #include "GameFramework/PlayerState.h"
 #include "HAL/FileManager.h"
 #include "HAL/IConsoleManager.h"
+#include "HAL/PlatformProcess.h"
 #include "Item/PungItemData.h"
 #include "Misc/CommandLine.h"
 #include "Misc/DateTime.h"
@@ -47,7 +48,9 @@ void UPungTelemetrySubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Super::Initialize(Collection);
 
 	bEnabledByCommandLine = FParse::Param(FCommandLine::Get(), TEXT("PungTelemetry")) || FParse::Param(FCommandLine::Get(), TEXT("PungAutoMatch"));
-	Directory = FPaths::ProjectSavedDir() / TEXT("Telemetry") / FDateTime::Now().ToString(TEXT("%Y%m%d_%H%M%S"));
+	// 여러 개를 동시에 띄워도 폴더가 겹치지 않게 프로세스 번호를 붙인다
+	Directory = FPaths::ProjectSavedDir() / TEXT("Telemetry")
+		/ FString::Printf(TEXT("%s_%u"), *FDateTime::Now().ToString(TEXT("%Y%m%d_%H%M%S")), FPlatformProcess::GetCurrentProcessId());
 
 	if (bEnabledByCommandLine)
 	{

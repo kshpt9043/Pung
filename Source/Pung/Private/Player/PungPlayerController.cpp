@@ -3,6 +3,7 @@
 
 #include "Player/PungPlayerController.h"
 #include "Camera/PungSpectatorCamera.h"
+#include "Game/PungAutoMatchSubsystem.h"
 #include "EnhancedInputComponent.h"
 #include "UI/PungHUDWidget.h"
 #include "GameFramework/PlayerState.h"
@@ -86,6 +87,21 @@ void APungPlayerController::BeginPlay()
 		if (HUDWidget)
 		{
 			HUDWidget->AddToViewport();
+		}
+	}
+
+	// 자동 대전을 화면으로 볼 때: 나는 스폰하지 않으므로 처음부터 아레나 전경을 본다
+	const UPungAutoMatchSubsystem* AutoMatch = GetGameInstance()->GetSubsystem<UPungAutoMatchSubsystem>();
+	if (IsLocalPlayerController() && AutoMatch && AutoMatch->IsActive() && SpectatorCameraClass && !SpectatorCamera)
+	{
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.Owner = this;
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		SpectatorCamera = GetWorld()->SpawnActor<APungSpectatorCamera>(SpectatorCameraClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
+		if (SpectatorCamera)
+		{
+			SpectatorCamera->StartSpectating(this, nullptr);
+			SetViewTarget(SpectatorCamera);
 		}
 	}
 }

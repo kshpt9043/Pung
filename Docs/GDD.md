@@ -264,7 +264,10 @@
   - 로컬 플레이어는 스폰하지 않고 관전자로 둔다 (점수판, 우승, 기록에서 제외).
   - 실행 인자: `-PungBots=Default:2,Smart:2` (등급:수), `-PungMatches=10` (0=무한), `-PungMatchDuration=120` (0=게임 모드 값), `-PungTimeScale=1` (시간 팽창, 크면 물리 결과가 조금 달라질 수 있음)
   - `Run-AutoMatch.bat` 이 에디터 빌드로 화면 없이(`-nullrhi -nosound -nosteam`) 실행한다. 패키징한 exe 도 같은 인자로 돌릴 수 있다.
-- **기록 (서버 전용, 매치 진행 중만):** `Saved/Telemetry/<실행 시각>/` 에 CSV.
+  - `AutoMatch-Launcher.bat` (GUI, `Tools/AutoMatchLauncher.ps1`, Windows 기본 PowerShell): 등급별 봇 수, 판 수, 매치 시간, 속도, 동시 실행 수, 화면 보기 여부를 고르고 실행한다. 에디터 빌드와 패키징 exe 모두 지원. 설정은 `Saved/AutoMatchLauncher.json`
+  - 화면으로 볼 때는 로컬 플레이어가 처음부터 아레나 전경 카메라를 본다.
+  - 기록 폴더 이름에 프로세스 번호를 붙여 여러 개를 동시에 돌려도 겹치지 않는다.
+- **기록 (서버 전용, 매치 진행 중만):** `Saved/Telemetry/<실행 시각>_<프로세스 번호>/` 에 CSV.
   - 켜는 법: 자동 대전 모드, 실행 인자 `-PungTelemetry`, 또는 콘솔 `pung.Telemetry 1` (사람끼리 플레이 기록도 남길 수 있다)
 
   | 파일 | 한 줄 | 열 |

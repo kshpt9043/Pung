@@ -14,7 +14,7 @@ class UPungItemData;
 /**
  *  플레이 기록 (서버 전용). 매치 진행 중의 넉백, 낙사, 아이템, 매치 결과를 CSV 로 남긴다.
  *  켜는 법: 자동 대전 모드(-PungAutoMatch), 실행 인자 -PungTelemetry, 또는 콘솔 pung.Telemetry 1.
- *  파일: Saved/Telemetry/<실행 시각>/ 아래 knockbacks.csv, falls.csv, items.csv, matches.csv
+ *  파일: Saved/Telemetry/<실행 시각>_<프로세스 번호>/ 아래 knockbacks.csv, falls.csv, items.csv, matches.csv
  *  밸런스 분석용 데이터라 대기(자유 연습) 중의 기록은 남기지 않는다.
  */
 UCLASS()
