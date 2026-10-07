@@ -210,7 +210,7 @@
 
 - [ ] `DA_BotProfile_Smart` (Normal 복제 후: 반응 0.2~0.4초, 조준 지연 0.12초, 오차 2°, 저글 확률 0.8, Low Charge Target Bonus 700, Retaliation Target Bonus 500)
 - [ ] 블랙보드 `BB_PungBot_Smart` (BB_PungBot 복제) 키 추가: `bThreatened` (Bool), `ThreatActor` (Object, Actor), `DodgeLocation` (Vector), `RetreatLocation` (Vector), `ItemLocation` (Vector)
-- [ ] EQS 쿼리 4개: `EQS_Pung_Attack`, `EQS_Pung_Retreat`, `EQS_Pung_Roam`, `EQS_Pung_Item`
+- [ ] EQS 쿼리 3개: `EQS_Pung_Attack`, `EQS_Pung_Retreat`, `EQS_Pung_Item` (배회는 기존 `Pung Find Roam Location` 재사용)
 - [ ] 비헤이비어 트리 `BT_PungBot_Smart` (블랙보드 = `BB_PungBot_Smart`)
   - [ ] 루트 아래 서비스: Pung Find Target, Pung Check Edge, **Pung Detect Threat** (Threatened Key = bThreatened, Threat Key = ThreatActor)
   - [ ] 모든 Run EQS Query 의 Run Mode = Single Best Item, Move To 의 Allow Partial Path 끄기
@@ -221,7 +221,7 @@
   - [ ] 내가 조준하고 있으면 옆으로 비켜서는지 (Gameplay Debugger 에서 bThreatened)
   - [ ] 탄이 1발 이하면 물러나는지, 가득 차면 다시 붙는지
   - [ ] `PungRemoveBot 1 Smart` → Smart 만 빠지는지. 매치 재시작 후 등급별 수 유지
-  - [ ] EQS 테스트 폰(`EQSTestingPawn`)으로 쿼리 점수 확인
+  - [ ] Retreat/Item 쿼리는 EQS 테스트 폰(`EQSTestingPawn`)으로, Attack 쿼리는 PIE 중 Gameplay Debugger EQS 카테고리로 점수 확인 (Pung Target 은 봇 컨트롤러에서만 채워진다)
 
 ---
 
