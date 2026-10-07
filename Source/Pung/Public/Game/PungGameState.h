@@ -13,8 +13,10 @@ class APungPlayerState;
 UENUM(BlueprintType)
 enum class EPungMatchPhase : uint8
 {
-	/** 매치 시작 전 */
+	/** 대기 (자유 연습). 이동, 사격, 리스폰은 되고 점수는 없다 */
 	WaitingToStart,
+	/** 시작 직전 카운트다운. 전원 스폰 지점에서 멈춰 있다 */
+	Countdown,
 	/** 진행 중. 이동, 사격, 득점 가능 */
 	InProgress,
 	/** 종료. 결과 화면 */
@@ -43,6 +45,24 @@ public:
 
 	UFUNCTION(BlueprintPure, Category="Pung")
 	bool IsMatchInProgress() const { return MatchPhase == EPungMatchPhase::InProgress; }
+
+	/** 플레이어가 움직이고 쏠 수 있는 단계인지 (대기, 진행 중) */
+	UFUNCTION(BlueprintPure, Category="Pung")
+	bool CanPlayersAct() const { return MatchPhase == EPungMatchPhase::WaitingToStart || MatchPhase == EPungMatchPhase::InProgress; }
+
+	/**
+	 *  대기 / 카운트다운 단계의 남은 시간 (초).
+	 *  대기: 자동 시작까지 남은 시간 (시작 예정이 없으면 0). 카운트다운: 시작까지 남은 시간.
+	 */
+	UFUNCTION(BlueprintPure, Category="Pung")
+	float GetPhaseTimeRemaining() const;
+
+	/** 대기 / 카운트다운 단계에 시작 예정 시각이 정해져 있는지 */
+	UFUNCTION(BlueprintPure, Category="Pung")
+	bool HasPhaseTimer() const { return PhaseTimerEndServerTime > 0.0; }
+
+	/** 서버 전용. 대기 / 카운트다운 단계가 끝나는 서버 시각. 0 이면 정해지지 않음. */
+	void SetPhaseTimerEnd(double ServerTime);
 
 	/** 남은 시간 (초). 진행 중이 아니면 0. */
 	UFUNCTION(BlueprintPure, Category="Pung")
@@ -98,6 +118,10 @@ protected:
 	/** 남은 시간을 매 초 복제하는 대신, 끝나는 서버 시각만 복제하고 클라이언트가 계산한다 */
 	UPROPERTY(Replicated)
 	double MatchEndServerTime = 0.0;
+
+	/** 대기 단계의 자동 시작 시각 / 카운트다운이 끝나는 시각. 0 이면 없음. */
+	UPROPERTY(Replicated)
+	double PhaseTimerEndServerTime = 0.0;
 
 	UPROPERTY(Replicated)
 	TArray<TObjectPtr<APlayerState>> Winners;

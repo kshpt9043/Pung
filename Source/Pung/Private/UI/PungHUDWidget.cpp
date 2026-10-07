@@ -27,6 +27,7 @@ void UPungHUDWidget::NativeConstruct()
 	SetShown(ScoreboardPanel, false);
 	SetShown(ResultPanel, false);
 	SetShown(InvulnerableText, false);
+	SetShown(CountdownText, false);
 
 	if (APungPlayerController* PC = GetOwningPlayer<APungPlayerController>())
 	{
@@ -83,7 +84,36 @@ void UPungHUDWidget::SetShown(UWidget* Widget, bool bShown)
 
 void UPungHUDWidget::TickDisplay()
 {
-	TimerText->SetText(GetRemainingTimeText());
+	// 단계에 따라 위쪽 글자가 바뀐다
+	const APungGameState* GameState = GetPungGameState();
+	const EPungMatchPhase Phase = GameState ? GameState->GetMatchPhase() : EPungMatchPhase::InProgress;
+	switch (Phase)
+	{
+	case EPungMatchPhase::WaitingToStart:
+		TimerText->SetText(GameState->HasPhaseTimer()
+			? FText::FromString(FString::Printf(TEXT("%d초 후 시작"), FMath::CeilToInt(GameState->GetPhaseTimeRemaining())))
+			: FText::FromString(TEXT("대기 중")));
+		break;
+	case EPungMatchPhase::Countdown:
+		TimerText->SetText(FText::FromString(TEXT("곧 시작")));
+		break;
+	case EPungMatchPhase::Ended:
+		TimerText->SetText(FText::FromString(TEXT("종료")));
+		break;
+	default:
+		TimerText->SetText(GetRemainingTimeText());
+		break;
+	}
+
+	if (CountdownText)
+	{
+		const bool bCountdown = Phase == EPungMatchPhase::Countdown;
+		SetShown(CountdownText, bCountdown);
+		if (bCountdown)
+		{
+			CountdownText->SetText(FText::AsNumber(FMath::Max(1, FMath::CeilToInt(GameState->GetPhaseTimeRemaining()))));
+		}
+	}
 
 	if (RechargeBar)
 	{

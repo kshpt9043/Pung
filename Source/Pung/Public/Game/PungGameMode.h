@@ -31,6 +31,12 @@ public:
 	/** 방이 꽉 찼으면 접속을 거절한다 */
 	virtual void PreLogin(const FString& Options, const FString& Address, const FUniqueNetIdRepl& UniqueId, FString& ErrorMessage) override;
 
+	/** 호스트 명령: 대기 중이면 바로 카운트다운을 시작한다. 시작했으면 true. */
+	bool RequestStartMatch();
+
+	/** 호스트 명령 (테스트용): 진행 중인 매치를 바로 끝낸다. 끝냈으면 true. */
+	bool RequestEndMatch();
+
 	/** 캐릭터가 아레나 밖으로 떨어졌을 때 캐릭터가 호출한다 */
 	void HandleCharacterFell(APungCharacter* Victim);
 
@@ -54,6 +60,21 @@ public:
 
 protected:
 
+	/** 대기 (자유 연습). 시작 조건을 기다린다. */
+	void EnterWaiting();
+
+	/** 대기 중 시작 조건 확인 (1초마다) */
+	void CheckAutoStart();
+
+	/** 카운트다운: 전원 새로 스폰하고 기록을 지운 뒤 잠시 멈춰 있다가 매치를 시작한다 */
+	void BeginCountdown();
+
+	/** 전원을 스폰 지점에서 새로 스폰하고 킬/사망을 0 으로 */
+	void ResetPlayersForMatch();
+
+	/** 봇을 뺀 사람 수 */
+	int32 GetHumanPlayerCount() const;
+
 	void StartMatch();
 	void EndMatch();
 
@@ -76,6 +97,22 @@ protected:
 	/** 세션 없이(혼자, PIE) 열었을 때의 정원. 봇을 넣을 수 있는 상한이 된다. */
 	UPROPERTY(EditDefaultsOnly, Category="Bots", meta=(ClampMin="1"))
 	int32 MaxPlayersWithoutSession = 8;
+
+	/** 대기 중 사람(봇 제외)이 이 수 이상 모이면 자동으로 시작한다. 0 이면 자동 시작 없음 (호스트 명령으로만). */
+	UPROPERTY(EditDefaultsOnly, Category="Match", meta=(ClampMin="0"))
+	int32 AutoStartPlayerCount = 2;
+
+	/** 자동 시작 조건을 채운 뒤 카운트다운까지 기다리는 시간 (더 들어올 사람을 기다림) */
+	UPROPERTY(EditDefaultsOnly, Category="Match", meta=(ClampMin="0", Units="s"))
+	float AutoStartDelay = 10.f;
+
+	/** 시작 전 카운트다운 */
+	UPROPERTY(EditDefaultsOnly, Category="Match", meta=(ClampMin="0", Units="s"))
+	float CountdownDuration = 3.f;
+
+	/** 매치가 끝나 맵을 다시 열었을 때 카운트다운까지 기다리는 시간 (다른 사람이 맵을 다시 불러올 시간) */
+	UPROPERTY(EditDefaultsOnly, Category="Match", meta=(ClampMin="0", Units="s"))
+	float RestartStartDelay = 5.f;
 
 	/** 매치 제한 시간 */
 	UPROPERTY(EditDefaultsOnly, Category="Match", meta=(ClampMin="1", Units="s"))
@@ -102,4 +139,13 @@ protected:
 	bool bAutoRestartMatch = true;
 
 	FTimerHandle MatchTimer;
+
+	/** 대기 중 자동 시작 확인 */
+	FTimerHandle AutoStartCheckTimer;
+
+	/** 대기 중 예약된 카운트다운 시작 */
+	FTimerHandle CountdownStartTimer;
+
+	/** 재시작으로 예약된 시작이라 사람 수가 줄어도 취소하지 않는다 */
+	bool bQuickStartScheduled = false;
 };

@@ -27,6 +27,9 @@ public:
 	/** 서버 전용 */
 	void AddDeath();
 
+	/** 서버 전용. 매치 시작 때 킬/사망을 0 으로 */
+	void ResetStats();
+
 	UFUNCTION(BlueprintPure, Category="Pung")
 	int32 GetKills() const { return Kills; }
 

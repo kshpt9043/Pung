@@ -111,8 +111,9 @@ void APungCharacter::HandleMatchPhaseChanged(EPungMatchPhase NewPhase)
 {
 	// 입력만 막으면 서버가 클라이언트의 이동을 그대로 믿으므로, 이동 자체를 끈다.
 	// 서버와 소유 클라이언트가 같이 꺼야 이동 예측이 어긋나지 않는다.
+	// 카운트다운과 매치 종료 동안은 그 자리에 멈춘다
 	UCharacterMovementComponent* Movement = GetCharacterMovement();
-	if (NewPhase == EPungMatchPhase::Ended)
+	if (NewPhase == EPungMatchPhase::Ended || NewPhase == EPungMatchPhase::Countdown)
 	{
 		if (Movement->MovementMode != MOVE_None)
 		{
@@ -128,9 +129,9 @@ void APungCharacter::HandleMatchPhaseChanged(EPungMatchPhase NewPhase)
 
 bool APungCharacter::CanAct() const
 {
-	// 게임 상태가 Pung 것이 아니면 (테스트 맵 등) 제한하지 않는다
+	// 게임 상태가 Pung 것이 아니면 (테스트 맵 등) 제한하지 않는다. 대기(자유 연습)와 진행 중에만 움직이고 쏜다.
 	const APungGameState* PungGameState = GetWorld()->GetGameState<APungGameState>();
-	return !PungGameState || PungGameState->IsMatchInProgress();
+	return !PungGameState || PungGameState->CanPlayersAct();
 }
 
 void APungCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)

@@ -15,6 +15,7 @@ void APungGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLi
 
 	DOREPLIFETIME(APungGameState, MatchPhase);
 	DOREPLIFETIME(APungGameState, MatchEndServerTime);
+	DOREPLIFETIME(APungGameState, PhaseTimerEndServerTime);
 	DOREPLIFETIME(APungGameState, Winners);
 }
 
@@ -82,6 +83,20 @@ void APungGameState::SetMatchPhase(EPungMatchPhase NewPhase)
 
 	// 서버에서는 OnRep 이 자동 호출되지 않으므로 리슨 서버 호스트를 위해 직접 호출한다
 	OnRep_MatchPhase();
+}
+
+float APungGameState::GetPhaseTimeRemaining() const
+{
+	if (PhaseTimerEndServerTime <= 0.0)
+	{
+		return 0.f;
+	}
+	return FMath::Max(0.f, static_cast<float>(PhaseTimerEndServerTime - GetServerWorldTimeSeconds()));
+}
+
+void APungGameState::SetPhaseTimerEnd(double ServerTime)
+{
+	PhaseTimerEndServerTime = ServerTime;
 }
 
 void APungGameState::SetMatchEndTime(double ServerTime)

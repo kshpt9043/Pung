@@ -9,6 +9,7 @@
 #include "Engine/World.h"
 #include "Engine/GameInstance.h"
 #include "Game/PungGameState.h"
+#include "Game/PungMatchSubsystem.h"
 #include "Online/PungSessionSubsystem.h"
 #include "Player/PungPlayerController.h"
 #include "Player/PungPlayerState.h"
@@ -27,9 +28,6 @@ void APungGameMode::StartPlay()
 {
 	Super::StartPlay();
 
-	// 프로토타입: 맵이 열리면 바로 시작한다. 대기실/최소 인원은 나중에.
-	StartMatch();
-
 	// 지난 매치에 있던 봇을 다시 넣는다 (매치가 끝나면 맵을 다시 열어서 사라진다)
 	if (UPungBotSubsystem* Bots = GetGameInstance()->GetSubsystem<UPungBotSubsystem>())
 	{
@@ -41,6 +39,154 @@ void APungGameMode::StartPlay()
 			++Restored;
 		}
 		Bots->DesiredBotCount = Restored;
+	}
+
+	// 맵이 열리면 대기(자유 연습)부터. 매치 재시작이면 잠시 뒤 바로 카운트다운.
+	EnterWaiting();
+}
+
+void APungGameMode::EnterWaiting()
+{
+	APungGameState* PungGameState = GetGameState<APungGameState>();
+	PungGameState->SetWinners({});
+	PungGameState->SetPhaseTimerEnd(0.0);
+	PungGameState->SetMatchPhase(EPungMatchPhase::WaitingToStart);
+
+	UPungMatchSubsystem* Match = GetGameInstance()->GetSubsystem<UPungMatchSubsystem>();
+	if (Match && Match->bQuickStartNextMatch)
+	{
+		Match->bQuickStartNextMatch = false;
+		bQuickStartScheduled = true;
+		GetWorldTimerManager().SetTimer(CountdownStartTimer, this, &APungGameMode::BeginCountdown, FMath::Max(RestartStartDelay, 0.01f), false);
+		PungGameState->SetPhaseTimerEnd(PungGameState->GetServerWorldTimeSeconds() + RestartStartDelay);
+		UE_LOG(LogPung, Log, TEXT("[매치] 재시작: %.0f초 뒤 카운트다운"), RestartStartDelay);
+	}
+	else
+	{
+		UE_LOG(LogPung, Log, TEXT("[매치] 대기 중 (사람 %d명 이상이면 자동 시작, 호스트는 PungStartMatch)"), AutoStartPlayerCount);
+	}
+
+	GetWorldTimerManager().SetTimer(AutoStartCheckTimer, this, &APungGameMode::CheckAutoStart, 1.f, true);
+}
+
+int32 APungGameMode::GetHumanPlayerCount() const
+{
+	int32 Count = 0;
+	for (const APlayerState* PlayerState : GameState->PlayerArray)
+	{
+		if (PlayerState && !PlayerState->IsABot())
+		{
+			++Count;
+		}
+	}
+	return Count;
+}
+
+void APungGameMode::CheckAutoStart()
+{
+	APungGameState* PungGameState = GetGameState<APungGameState>();
+	if (PungGameState->GetMatchPhase() != EPungMatchPhase::WaitingToStart)
+	{
+		GetWorldTimerManager().ClearTimer(AutoStartCheckTimer);
+		return;
+	}
+
+	// 재시작으로 예약된 시작은 그대로 둔다
+	if (bQuickStartScheduled)
+	{
+		return;
+	}
+
+	const bool bEnoughPlayers = AutoStartPlayerCount > 0 && GetHumanPlayerCount() >= AutoStartPlayerCount;
+	FTimerManager& Timers = GetWorldTimerManager();
+
+	if (bEnoughPlayers && !Timers.IsTimerActive(CountdownStartTimer))
+	{
+		Timers.SetTimer(CountdownStartTimer, this, &APungGameMode::BeginCountdown, FMath::Max(AutoStartDelay, 0.01f), false);
+		PungGameState->SetPhaseTimerEnd(PungGameState->GetServerWorldTimeSeconds() + AutoStartDelay);
+		UE_LOG(LogPung, Log, TEXT("[매치] 사람 %d명: %.0f초 뒤 시작"), GetHumanPlayerCount(), AutoStartDelay);
+	}
+	else if (!bEnoughPlayers && Timers.IsTimerActive(CountdownStartTimer))
+	{
+		Timers.ClearTimer(CountdownStartTimer);
+		PungGameState->SetPhaseTimerEnd(0.0);
+		UE_LOG(LogPung, Log, TEXT("[매치] 사람이 줄어 자동 시작 취소"));
+	}
+}
+
+bool APungGameMode::RequestStartMatch()
+{
+	if (GetGameState<APungGameState>()->GetMatchPhase() != EPungMatchPhase::WaitingToStart)
+	{
+		return false;
+	}
+
+	BeginCountdown();
+	return true;
+}
+
+bool APungGameMode::RequestEndMatch()
+{
+	if (!GetGameState<APungGameState>()->IsMatchInProgress())
+	{
+		return false;
+	}
+
+	GetWorldTimerManager().ClearTimer(MatchTimer);
+	EndMatch();
+	return true;
+}
+
+void APungGameMode::BeginCountdown()
+{
+	APungGameState* PungGameState = GetGameState<APungGameState>();
+	if (PungGameState->GetMatchPhase() != EPungMatchPhase::WaitingToStart)
+	{
+		return;
+	}
+
+	FTimerManager& Timers = GetWorldTimerManager();
+	Timers.ClearTimer(AutoStartCheckTimer);
+	Timers.ClearTimer(CountdownStartTimer);
+	bQuickStartScheduled = false;
+
+	// 연습 때의 기록과 위치를 지우고 모두 같은 조건에서 시작한다
+	ResetPlayersForMatch();
+
+	PungGameState->SetPhaseTimerEnd(PungGameState->GetServerWorldTimeSeconds() + CountdownDuration);
+	PungGameState->SetMatchPhase(EPungMatchPhase::Countdown);
+	Timers.SetTimer(MatchTimer, this, &APungGameMode::StartMatch, FMath::Max(CountdownDuration, 0.01f), false);
+
+	UE_LOG(LogPung, Log, TEXT("[매치] 카운트다운 %.0f초"), CountdownDuration);
+}
+
+void APungGameMode::ResetPlayersForMatch()
+{
+	// 순회 중에 폰을 지우므로 컨트롤러를 먼저 모은다
+	TArray<AController*> Controllers;
+	for (FConstControllerIterator It = GetWorld()->GetControllerIterator(); It; ++It)
+	{
+		if (AController* Controller = It->Get())
+		{
+			if (Controller->PlayerState)
+			{
+				Controllers.Add(Controller);
+			}
+		}
+	}
+
+	for (AController* Controller : Controllers)
+	{
+		if (APungPlayerState* State = Controller->GetPlayerState<APungPlayerState>())
+		{
+			State->ResetStats();
+		}
+
+		if (APawn* OldPawn = Controller->GetPawn())
+		{
+			OldPawn->Destroy();
+		}
+		RestartPlayer(Controller);
 	}
 }
 
@@ -65,6 +211,7 @@ void APungGameMode::StartMatch()
 {
 	APungGameState* PungGameState = GetGameState<APungGameState>();
 	PungGameState->SetWinners({});
+	PungGameState->SetPhaseTimerEnd(0.0);
 	PungGameState->SetMatchEndTime(PungGameState->GetServerWorldTimeSeconds() + MatchDuration);
 	PungGameState->SetMatchPhase(EPungMatchPhase::InProgress);
 
@@ -127,6 +274,12 @@ void APungGameMode::EndMatch()
 void APungGameMode::RestartMatch()
 {
 	UE_LOG(LogPung, Log, TEXT("[매치] 새 매치를 위해 맵을 다시 엽니다"));
+
+	// 다시 열린 맵에서는 대기 없이 곧바로 카운트다운한다
+	if (UPungMatchSubsystem* Match = GetGameInstance()->GetSubsystem<UPungMatchSubsystem>())
+	{
+		Match->bQuickStartNextMatch = true;
+	}
 	GetWorld()->ServerTravel(TEXT("?Restart"));
 }
 
@@ -147,6 +300,7 @@ void APungGameMode::HandleCharacterFell(APungCharacter* Victim)
 
 	APungPlayerState* KillerState = Killer ? Killer->GetPlayerState<APungPlayerState>() : nullptr;
 
+	// 점수는 매치 중에만. 킬 피드와 관전은 대기(자유 연습)에서도 보여 준다.
 	if (bInProgress)
 	{
 		if (KillerState)
@@ -157,6 +311,9 @@ void APungGameMode::HandleCharacterFell(APungCharacter* Victim)
 		{
 			VictimState->AddDeath();
 		}
+	}
+	if (PungGameState->GetMatchPhase() != EPungMatchPhase::Ended)
+	{
 		GetGameState<APungGameState>()->MulticastPlayerFell(KillerState, VictimState);
 	}
 
@@ -164,8 +321,8 @@ void APungGameMode::HandleCharacterFell(APungCharacter* Victim)
 		VictimState ? *VictimState->GetPlayerName() : TEXT("알 수 없음"),
 		KillerState ? *KillerState->GetPlayerName() : TEXT("자멸"));
 
-	// 매치가 끝난 뒤에는 리스폰하지 않는다
-	if (VictimController && bInProgress)
+	// 매치가 끝난 뒤에는 리스폰하지 않는다 (대기 중 자유 연습에서는 리스폰한다)
+	if (VictimController && PungGameState->GetMatchPhase() != EPungMatchPhase::Ended)
 	{
 		if (VictimState)
 		{
@@ -179,8 +336,8 @@ void APungGameMode::HandleCharacterFell(APungCharacter* Victim)
 
 void APungGameMode::RespawnPlayer(TWeakObjectPtr<AController> Controller)
 {
-	// 대기 중에 나갔거나 매치가 끝났으면 무시
-	if (!Controller.IsValid() || !GetGameState<APungGameState>()->IsMatchInProgress())
+	// 기다리는 중에 나갔거나, 매치가 끝났거나, 카운트다운에서 이미 새로 스폰됐으면 무시
+	if (!Controller.IsValid() || Controller->GetPawn() || GetGameState<APungGameState>()->GetMatchPhase() == EPungMatchPhase::Ended)
 	{
 		return;
 	}

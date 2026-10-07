@@ -111,8 +111,11 @@ protected:
 	// 배치할 위젯 (이름이 같아야 한다)
 	// ---------------------------------------------------------
 
-	/** 매치 남은 시간 "4:32" */
+	/** 매치 남은 시간 "4:32". 대기 중에는 "대기 중" / "8초 후 시작" */
 	UPROPERTY(meta=(BindWidget)) TObjectPtr<UTextBlock> TimerText;
+
+	/** 시작 직전 카운트다운 큰 숫자 "3" (카운트다운 동안만 보인다) */
+	UPROPERTY(meta=(BindWidgetOptional)) TObjectPtr<UTextBlock> CountdownText;
 
 	/** 탄 칸을 담는 가로 상자. 칸(이미지)은 C++ 이 최대 탄 수만큼 만든다. */
 	UPROPERTY(meta=(BindWidget)) TObjectPtr<UHorizontalBox> ChargeBox;

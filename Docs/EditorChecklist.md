@@ -225,6 +225,7 @@
 | `pung.Knockback.ClientApply 0/1` | 넉백을 본인 화면에서도 바로 적용할지 (끊김 비교) |
 | `pung.Debug.Trajectory 1` | 점프, 로켓 점프, 넉백 뒤 비행 궤적과 "시간, 최고 높이, 수평 거리" 표시. 넉백 튜닝과 맵 치수 측정용 |
 | `PungAddBot [수]` / `PungRemoveBot [수]` | 봇 추가/제거 (호스트) |
+| `PungStartMatch` / `PungEndMatch` | 대기 중 바로 시작 / 진행 중 바로 종료 (호스트) |
 | `PungGiveItem <에셋 이름>` | 아이템 받기 (호스트) |
 | `PungHost [인원]` / `PungFind` / `PungJoin [번호]` / `PungLeave` / `PungInvite` / `PungSession` / `PungBuildFilter 0/1` | Steam 세션 |
 
@@ -235,7 +236,7 @@
 전체 목록은 GDD §10.5 "UI 에서 쓸 데이터" 표. 만들 것:
 
 > **최소 HUD 는 C++ 이 값을 채운다 (BindWidget).** WBP 에서 정해진 이름으로 위젯을 배치하기만 하면 된다. 필수 위젯이 없으면 WBP 컴파일 에러가 난다.
-> - `WBP_PungHUD` (부모 `PungHUDWidget`): TimerText, ChargeBox, KillFeedBox, DeathPanel, ScoreboardPanel, ScoreboardList, ResultPanel (필수) / RechargeBar, InvulnerableText, ItemBox, SpectateText, RespawnText, ResultText (선택)
+> - `WBP_PungHUD` (부모 `PungHUDWidget`): TimerText, ChargeBox, KillFeedBox, DeathPanel, ScoreboardPanel, ScoreboardList, ResultPanel (필수) / RechargeBar, InvulnerableText, ItemBox, SpectateText, RespawnText, ResultText, CountdownText (선택)
 > - `WBP_KillFeedEntry` (부모 `PungKillFeedEntryWidget`): MessageText
 > - `WBP_ScoreboardRow` (부모 `PungScoreboardRowWidget`): NameText, KillsText, DeathsText (필수) / RankText, LocalHighlight (선택)
 > - `WBP_ItemSlot` (부모 `PungItemSlotWidget`): IconImage (필수) / InfoText, TimeBar (선택)

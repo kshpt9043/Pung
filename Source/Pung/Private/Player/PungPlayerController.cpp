@@ -297,3 +297,36 @@ void APungPlayerController::PungGiveItem(const FString& ItemAssetName)
 	}
 	UE_LOG(LogPung, Warning, TEXT("[아이템] '%s' 를 찾지 못했습니다. 있는 아이템: %s"), *ItemAssetName, *FString::Join(Names, TEXT(", ")));
 }
+
+void APungPlayerController::PungStartMatch()
+{
+	APungGameMode* GameMode = GetWorld()->GetAuthGameMode<APungGameMode>();
+	if (!GameMode)
+	{
+		UE_LOG(LogPung, Warning, TEXT("[매치] 호스트만 시작할 수 있습니다."));
+		return;
+	}
+
+	const bool bStarted = GameMode->RequestStartMatch();
+	const FString Message = bStarted ? TEXT("[매치] 카운트다운 시작") : TEXT("[매치] 대기 중이 아니라 시작할 수 없습니다.");
+	UE_LOG(LogPung, Log, TEXT("%s"), *Message);
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 4.f, bStarted ? FColor::Green : FColor::Yellow, Message);
+	}
+}
+
+void APungPlayerController::PungEndMatch()
+{
+	APungGameMode* GameMode = GetWorld()->GetAuthGameMode<APungGameMode>();
+	if (!GameMode)
+	{
+		UE_LOG(LogPung, Warning, TEXT("[매치] 호스트만 끝낼 수 있습니다."));
+		return;
+	}
+
+	if (!GameMode->RequestEndMatch() && GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 4.f, FColor::Yellow, TEXT("[매치] 진행 중이 아니라 끝낼 수 없습니다."));
+	}
+}

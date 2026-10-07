@@ -25,6 +25,15 @@ void APungPlayerState::AddKill()
 	OnRep_Stats();
 }
 
+void APungPlayerState::ResetStats()
+{
+	Kills = 0;
+	Deaths = 0;
+	SetScore(0);
+	RespawnServerTime = 0.0;
+	OnRep_Stats();
+}
+
 void APungPlayerState::AddDeath()
 {
 	++Deaths;
