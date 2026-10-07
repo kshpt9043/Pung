@@ -201,16 +201,20 @@
 ## 7.5 봇 ✅
 
 - **호스트가 직접 넣고 뺀다.** 빈자리 자동 채우기는 없다. 사람과 봇을 합쳐 정원을 넘지 않는다 (세션이 없으면 8명).
-  - 넣은 봇 수는 매치가 다시 시작돼도 유지된다.
+  - 넣은 봇(등급 포함)은 매치가 다시 시작돼도 유지된다.
+- **등급.** 같은 C++ 컨트롤러에 BP 를 등급마다 따로 만들어 BT 와 프로필을 바꾼다. 게임 모드의 `Bot Controller Class` 가 기본 등급, `Bot Tiers` (이름 → 컨트롤러 BP, 이름 앞부분) 가 추가 등급.
+  - 기본: `BP_PungAIController` + `BT_PungBot` + `DA_BotProfile_Normal` (C++ 위치 찾기 노드)
+  - 똑똑함(`Smart`): `BP_PungAIController_Smart` + `BT_PungBot_Smart` + `DA_BotProfile_Smart` (EQS 로 자리 잡기, 위협 회피, 탄 관리, 사냥감 고르기)
   - 사람이 들어올 때 봇이 자동으로 빠지지는 않는다. 사람의 접속은 사람 수로만 정원을 검사한다.
 - **사람과 같은 규칙.** 같은 캐릭터, 같은 공기총, 같은 판정, 같은 넉백 후 조작력 감소를 쓴다 (§3.5). 점수판, 킬 판정, 우승도 사람과 똑같이 친다.
-  - 점수판의 봇 표시는 UI 에서 `APungPlayerState::IsBot()` 으로 한다. 이름은 "Bot 1" 같은 형태.
+  - 점수판의 봇 표시는 UI 에서 `APungPlayerState::IsBot()` 으로 한다. 이름은 "Bot 1" 같은 형태 (등급마다 앞부분을 바꿀 수 있음. 예: "Smart Bot 2").
 - **서버에만 있다.** 클라이언트에게는 다른 플레이어로 보인다.
 - **구조: 행동은 BT 에서 조립한다.** C++ 는 BT 부품과 실행 껍데기만 제공한다.
 
   | 노드 | 종류 | 역할 |
   |---|---|---|
-  | `Pung Find Target` | Service | "거리 - 가산점" 이 가장 작은 적 → BB (Object). 가산점: 가장자리 근처, 공중에 뜸, 지금 노리는 상대. 무적 상대 제외. 선택 키: 공중 여부, 가장자리 여부 (Bool) |
+  | `Pung Find Target` | Service | "거리 - 가산점" 이 가장 작은 적 → BB (Object). 가산점: 가장자리 근처, 공중에 뜸, 지금 노리는 상대, (프로필에서 켜면) 탄이 거의 없는 상대, 나를 노리는 상대. 무적 상대 제외. 선택 키: 공중 여부, 가장자리 여부 (Bool) |
+  | `Pung Detect Threat` | Service | 나를 노리는 적(조준선이 내 몸/발과 6° 안, 서로 보임, 탄 있음)을 반응 시간 0.25초 뒤 알아챔 → BB (Bool, 선택 Object) |
   | `Pung Check Edge` | Service | 주변에 바닥 없는 곳이 있으면 → BB (Bool). 공중에서는 갱신 안 함 |
   | `Pung Aim And Fire` | Task | 반응 시간 동안 대상을 바라보다가 오차를 섞어 발사. 땅에 있는 상대는 확률로 발밑 조준. 상대가 뜨면 확률로 연사(저글). 내가 가장자리인데 내 폭발 범위 안을 쏘게 되면 안 쏨 |
   | `Pung Find Combat Location` | Task | 대상과 싸우기 좋은 자리 → BB (Vector). 대상 주변 6~13m 고리 중: 실제로 걸어서 갈 수 있음 (경로 검사), 내 발밑 안전, 대상이 보임, **내 쪽에서 쏘면 대상이 가장자리로 밀려 나가는 자리**, 높은 곳 선호, 먼 이동 회피 |
@@ -218,21 +222,36 @@
   | `Pung Find Safe Location` | Task | 낭떠러지 반대쪽, 주변에 바닥이 많은 NavMesh 지점 → BB (Vector) |
   | `Pung Has Charge` | Decorator | 충전 N발 이상이면 통과 (중단 모드 미지원) |
   | `Pung Use Item` | Task | 들고 있는 사용형 아이템(펄스 등) 사용. 없으면 실패 |
+  | `Pung Find Dodge Location` | Task | 위협의 조준선 옆(좌우, 비스듬히 앞)으로 비켜설 자리 중 주변 바닥이 가장 많은 곳 → BB (Vector). 확률로 점프 (가장자리 근처 제외) |
+  | `Pung Enemies Nearby` | Decorator | 반경 안에 보이는 적이 N명 이상 (선택: 그중 한 명이 가장자리 근처). 펄스 쓸 때 고르기 |
 
+  EQS 부품 (똑똑한 봇이 "어디로 갈지" 를 쿼리로 조립한다. 엔진 기본 Generator/Test 와 섞어 쓴다)
+
+  | 부품 | 종류 | 역할 |
+  |---|---|---|
+  | `Pung Ground Safety` | Test | 지점 주변 원 위에 바닥이 있는 비율 (0~1) |
+  | `Pung Push Edge Distance` | Test | 밀려가는 쪽 낭떠러지까지 거리 (cm). "내가 상대를 밀 때" (작을수록 공격 자리) / "상대가 나를 밀 때" (클수록 수비 자리) |
+  | `Pung Target` / `Pung Threat` | Context | 지금 노리는 적 / 나를 노리는 적 (컨트롤러에 적힌 것. BB 키 이름에 기대지 않음) |
+  | `Pung Enemies` | Context | 나를 뺀 모든 캐릭터 |
+  | `Pung Arena Center` | Context | 스폰 지점들의 평균 |
+  | `Pung Ready Item Pads` | Context | 아이템이 올라와 있는 패드들 |
+
+  - 높이 차이는 엔진 `Distance` 테스트의 `Distance Z` 로 잰다 (별도 부품 없음).
   - BB 키는 노드 디테일 창에서 고른다. 이동은 기본 `Move To`.
   - 난이도는 `UPungBotProfile` 데이터 에셋 (§10).
 - 1차 범위: 적 찾기, 조준 오차를 둔 발밑/몸 사격, 낭떠러지 피하기.
 - 2차 ✅: 떨어뜨리기 좋은 적 우선 (가장자리, 공중), 저글 연사, 자기 폭발 안전 검사, 배회 (아이템 패드 쪽).
 - 3차 ✅: 전투 위치 잡기 (`Pung Find Combat Location`), 쏘면서 움직이기 (BT 의 Simple Parallel 로 조립, C++ 없음).
+- 4차 (똑똑한 봇 등급): EQS 로 자리 잡기 (공격/수비/후퇴/아이템), 위협 감지와 회피, 탄 관리 (2발 미만이면 물러나 충전, `Pung Has Charge` 반전), 사냥감 고르기 (탄 없는 상대, 나를 노리는 상대), 펄스는 가장자리 근처 적이 범위 안일 때만. 기본 봇은 그대로 둔다.
 - 보류: **밀려 떨어질 때 로켓 점프로 복귀.** 지금 규칙에서는 사람도 거의 못 한다. 공중에서 내 근처에 폭발을 만들려면 탄이 무언가에 맞아야 하는데(근접 신관은 남의 몸에만 반응, 아무것도 안 맞으면 사거리 끝에서 폭발), 아레나 밖에는 쏠 바닥이 없고 아레나 벽을 쏘면 바깥으로 밀린다. 복귀 플레이를 넣으려면 먼저 사격 규칙(예: 공중 폭발 거리 조절)을 정해야 한다 (❓ 기획 결정).
 - 봇 디버그 콘솔 명령 (호스트 전용, `APungPlayerController`)
 
   | 명령 | 동작 |
   |---|---|
-  | `PungAddBot [수=1]` | 봇 추가 |
-  | `PungRemoveBot [수=1]` | 나중에 들어온 봇부터 제거 |
+  | `PungAddBot [수=1] [등급]` | 봇 추가. 등급을 비우면 기본. 예: `PungAddBot 2 Smart` |
+  | `PungRemoveBot [수=1] [등급]` | 나중에 들어온 봇부터 제거. 등급을 주면 그 등급만 |
 
-- 에디터 작업: BB/BT 에셋, `BP_PungAIController` (BT 와 프로필 지정), `BP_PungGameMode` 의 Bot Controller Class 지정, 맵에 `NavMeshBoundsVolume`.
+- 에디터 작업: BB/BT 에셋, `BP_PungAIController` (BT 와 프로필 지정), `BP_PungGameMode` 의 Bot Controller Class / Bot Tiers 지정, 맵에 `NavMeshBoundsVolume`. 똑똑한 봇은 EQS 쿼리 에셋도.
 
 ---
 
@@ -349,6 +368,13 @@
 | 배회 반경 | 1500 cm | |
 | 배회 중심 끌림 | 0.3 | 중심에서 1m 멀어질 때마다 감점 |
 | 배회 패드 끌림 반경 / 가산점 | 2000 cm / 8 | |
+| 탄 없는 상대 기준 / 가산점 | 1발 이하 / 0 cm | 0 이면 안 씀. 똑똑한 봇 예: 700 |
+| 나를 노리는 상대 가산점 | 0 cm | 0 이면 안 씀. 똑똑한 봇 예: 500 |
+| 위협 조준 각도 | 6° | 상대 조준선이 내 몸/발과 이 안이면 노림당함 |
+| 위협 감지 거리 | 2500 cm | |
+| 위협 반응 시간 | 0.25 s | 이만큼 계속 노려야 알아챔 |
+| 회피 거리 | 350 cm | 조준선 옆으로 |
+| 회피 점프 확률 | 0.3 | 가장자리 근처에서는 안 뜀 |
 
 > 궤적 측정: `pung.Debug.Trajectory 1` — 점프, 로켓 점프, 넉백 뒤 비행 궤적(주황)을 그리고 "시간, 최고 높이, 수평 거리, 높이 변화" 를 화면과 로그에 남긴다. 착지, 낙사, 미끄러져 멈춤에서 끝난다. 맵 치수와 넉백 비거리를 잴 때 쓴다.
 
@@ -377,11 +403,12 @@
 | `APungGameMode` | 서버 전용 규칙: 매치 시작/종료, 낙사 시 킬 판정, 리스폰 (랜덤 스폰 지점, 무적), 봇 추가/제거 |
 | `APungGameState` | 모두가 공유하는 매치 상태: 단계, 남은 시간, 우승자, 킬 알림 이벤트 |
 | `APungPlayerState` | 플레이어별 킬/사망 수, 봇 여부 |
-| `APungAIController` | 봇 컨트롤러. 지정된 BT 실행만 함. PlayerState 를 가짐 |
+| `APungAIController` | 봇 컨트롤러. 지정된 BT 실행만 함. PlayerState 를 가짐. 등급 이름, 지금 대상/위협 (EQS 컨텍스트용) 보관 |
 | `UPungBotProfile` | 봇 난이도 수치 데이터 에셋 |
-| `UPungBotSubsystem` | 넣은 봇 수 기억 (매치 재시작 후 복원) |
+| `UPungBotSubsystem` | 넣은 봇 등급 목록 기억 (매치 재시작 후 복원) |
 | `UPungMatchSubsystem` | 매치 재시작으로 맵을 다시 열었는지 기억 (대기 없이 바로 카운트다운) |
 | `BTService_PungFindTarget` 외 | 봇 BT 노드 (§7.5) |
+| `UEnvQueryTest_PungGroundSafety` / `UEnvQueryTest_PungPushEdgeDistance` / `UEnvQueryContext_Pung*` | 봇 EQS 테스트와 컨텍스트 (§7.5) |
 
 ### UI 에서 쓸 데이터
 
@@ -439,6 +466,7 @@ UI 는 UserWidget(UMG) 으로 만든다. C++ 는 아래 값과 이벤트만 제�
 
 | 날짜 | 결정 |
 |---|---|
+| 2026-10-07 | 봇 등급 도입: 기본 봇은 유지하고 똑똑한 봇은 별도 BT + EQS. C++ 는 EQS 테스트/컨텍스트, 위협 감지, 회피, 펄스 조건만 제공 |
 | 2026-10-06 | 콘셉트 확정: 공기총 장외 FPS, 스팀 출시 목표 |
 | 2026-10-06 | 무기: 업앤아토마이저식 투사체 + 방사형 넉백, 자기 넉백 O, 누적 넉백 X, 자동 충전 (투사체 판정은 이후 즉발 판정으로 교체) |
 | 2026-10-06 | 무기 성능 고정, 스킨만 허용 |

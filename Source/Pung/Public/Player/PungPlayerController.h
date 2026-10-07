@@ -131,13 +131,16 @@ protected:
 	// 봇 디버그 명령 (호스트 전용)
 	// ---------------------------------------------------------
 
-	/** 봇을 넣는다. 정원을 넘지 않는 만큼만 들어가고, 이후 매치에도 유지된다. 예: PungAddBot 3 */
+	/**
+	 *  봇을 넣는다. 정원을 넘지 않는 만큼만 들어가고, 이후 매치에도 유지된다.
+	 *  등급을 비우면 기본 등급. 예: PungAddBot 3, PungAddBot 2 Smart
+	 */
 	UFUNCTION(Exec)
-	void PungAddBot(int32 Count = 1);
+	void PungAddBot(int32 Count = 1, const FString& Tier = TEXT(""));
 
-	/** 봇을 뺀다. 예: PungRemoveBot 3 */
+	/** 봇을 뺀다. 등급을 비우면 등급 상관없이 나중에 들어온 봇부터. 예: PungRemoveBot 3, PungRemoveBot 1 Smart */
 	UFUNCTION(Exec)
-	void PungRemoveBot(int32 Count = 1);
+	void PungRemoveBot(int32 Count = 1, const FString& Tier = TEXT(""));
 
 	// ---------------------------------------------------------
 	// 아이템 디버그 명령 (호스트 전용)

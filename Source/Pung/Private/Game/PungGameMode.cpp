@@ -33,12 +33,16 @@ void APungGameMode::StartPlay()
 	{
 		Bots->NextBotNumber = 1;
 
-		int32 Restored = 0;
-		while (Restored < Bots->DesiredBotCount && SpawnBot())
+		// 넣지 못한 봇(정원 초과, 등급이 사라짐)은 목록에서 뺀다
+		TArray<FName> Restored;
+		for (const FName Tier : Bots->DesiredBotTiers)
 		{
-			++Restored;
+			if (SpawnBot(Tier))
+			{
+				Restored.Add(Tier);
+			}
 		}
-		Bots->DesiredBotCount = Restored;
+		Bots->DesiredBotTiers = MoveTemp(Restored);
 	}
 
 	// 맵이 열리면 대기(자유 연습)부터. 매치 재시작이면 잠시 뒤 바로 카운트다운.
@@ -377,21 +381,49 @@ int32 APungGameMode::GetMaxPlayers() const
 	return MaxPlayersWithoutSession;
 }
 
-bool APungGameMode::SpawnBot()
+bool APungGameMode::HasBotTier(FName Tier) const
 {
+	return Tier.IsNone() || BotTiers.Contains(Tier);
+}
+
+TArray<FName> APungGameMode::GetBotTierNames() const
+{
+	TArray<FName> Names;
+	BotTiers.GetKeys(Names);
+	return Names;
+}
+
+bool APungGameMode::SpawnBot(FName Tier)
+{
+	// 등급에 맞는 컨트롤러 클래스와 이름
+	TSubclassOf<APungAIController> ControllerClass = BotControllerClass;
+	FString NamePrefix = BotNamePrefix;
+	if (!Tier.IsNone())
+	{
+		const FPungBotTier* Found = BotTiers.Find(Tier);
+		if (!Found)
+		{
+			UE_LOG(LogPung, Warning, TEXT("[봇] '%s' 등급이 없습니다. 게임 모드의 Bot Tiers 를 확인하세요."), *Tier.ToString());
+			return false;
+		}
+		ControllerClass = Found->ControllerClass;
+		NamePrefix = Found->NamePrefix;
+	}
+
 	// 사람과 봇을 합쳐 정원을 넘지 않게 한다
-	if (!BotControllerClass || GameState->PlayerArray.Num() >= GetMaxPlayers())
+	if (!ControllerClass || GameState->PlayerArray.Num() >= GetMaxPlayers())
 	{
 		return false;
 	}
 
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	APungAIController* Bot = GetWorld()->SpawnActor<APungAIController>(BotControllerClass, SpawnParams);
+	APungAIController* Bot = GetWorld()->SpawnActor<APungAIController>(ControllerClass, SpawnParams);
 	if (!Bot)
 	{
 		return false;
 	}
+	Bot->SetBotTier(Tier);
 
 	// PlayerState 는 컨트롤러가 생성될 때 만들어진다 (bWantsPlayerState)
 	if (APlayerState* State = Bot->PlayerState)
@@ -399,37 +431,46 @@ bool APungGameMode::SpawnBot()
 		UPungBotSubsystem* Bots = GetGameInstance()->GetSubsystem<UPungBotSubsystem>();
 		const int32 Number = Bots ? Bots->NextBotNumber++ : GameState->PlayerArray.Num();
 		State->SetIsABot(true);
-		State->SetPlayerName(FString::Printf(TEXT("Bot %d"), Number));
+		State->SetPlayerName(FString::Printf(TEXT("%s %d"), *NamePrefix, Number));
 	}
 
 	RestartPlayer(Bot);
 
-	UE_LOG(LogPung, Log, TEXT("[봇] %s 추가"), Bot->PlayerState ? *Bot->PlayerState->GetPlayerName() : *Bot->GetName());
+	UE_LOG(LogPung, Log, TEXT("[봇] %s 추가 (등급: %s)"), Bot->PlayerState ? *Bot->PlayerState->GetPlayerName() : *Bot->GetName(),
+		Tier.IsNone() ? TEXT("기본") : *Tier.ToString());
 	return true;
 }
 
-int32 APungGameMode::AddBots(int32 Count)
+int32 APungGameMode::AddBots(int32 Count, FName Tier)
 {
 	int32 Added = 0;
-	while (Added < Count && SpawnBot())
+	while (Added < Count && SpawnBot(Tier))
 	{
 		++Added;
 	}
 
 	if (UPungBotSubsystem* Bots = GetGameInstance()->GetSubsystem<UPungBotSubsystem>())
 	{
-		Bots->DesiredBotCount += Added;
+		for (int32 i = 0; i < Added; ++i)
+		{
+			Bots->DesiredBotTiers.Add(Tier);
+		}
 	}
 	return Added;
 }
 
-int32 APungGameMode::RemoveBots(int32 Count)
+int32 APungGameMode::RemoveBots(int32 Count, FName Tier)
 {
 	TArray<APungAIController*> Existing;
 	for (TActorIterator<APungAIController> It(GetWorld()); It; ++It)
 	{
-		Existing.Add(*It);
+		if (Tier.IsNone() || It->GetBotTier() == Tier)
+		{
+			Existing.Add(*It);
+		}
 	}
+
+	UPungBotSubsystem* Bots = GetGameInstance()->GetSubsystem<UPungBotSubsystem>();
 
 	// 나중에 들어온 봇부터 뺀다
 	int32 Removed = 0;
@@ -437,6 +478,16 @@ int32 APungGameMode::RemoveBots(int32 Count)
 	{
 		APungAIController* Bot = Existing[i];
 		UE_LOG(LogPung, Log, TEXT("[봇] %s 제거"), Bot->PlayerState ? *Bot->PlayerState->GetPlayerName() : *Bot->GetName());
+
+		// 다음 매치에 다시 넣을 목록에서도 같은 등급 하나를 뺀다
+		if (Bots)
+		{
+			const int32 Index = Bots->DesiredBotTiers.FindLast(Bot->GetBotTier());
+			if (Index != INDEX_NONE)
+			{
+				Bots->DesiredBotTiers.RemoveAt(Index);
+			}
+		}
 
 		if (APawn* Pawn = Bot->GetPawn())
 		{
@@ -446,9 +497,5 @@ int32 APungGameMode::RemoveBots(int32 Count)
 		++Removed;
 	}
 
-	if (UPungBotSubsystem* Bots = GetGameInstance()->GetSubsystem<UPungBotSubsystem>())
-	{
-		Bots->DesiredBotCount = FMath::Max(0, Bots->DesiredBotCount - Removed);
-	}
 	return Removed;
 }

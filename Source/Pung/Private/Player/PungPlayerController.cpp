@@ -228,7 +228,7 @@ void APungPlayerController::PungBuildFilter(bool bEnable)
 	}
 }
 
-void APungPlayerController::PungAddBot(int32 Count)
+void APungPlayerController::PungAddBot(int32 Count, const FString& Tier)
 {
 	APungGameMode* GameMode = GetWorld()->GetAuthGameMode<APungGameMode>();
 	if (!GameMode)
@@ -237,8 +237,25 @@ void APungPlayerController::PungAddBot(int32 Count)
 		return;
 	}
 
-	const int32 Added = GameMode->AddBots(FMath::Max(Count, 0));
-	const FString Message = FString::Printf(TEXT("[봇] %d명 추가 (정원 %d)"), Added, GameMode->GetMaxPlayers());
+	const FName TierName = Tier.IsEmpty() ? NAME_None : FName(*Tier);
+	if (!GameMode->HasBotTier(TierName))
+	{
+		FString Names;
+		for (const FName Name : GameMode->GetBotTierNames())
+		{
+			Names += Names.IsEmpty() ? Name.ToString() : TEXT(", ") + Name.ToString();
+		}
+		const FString Message = FString::Printf(TEXT("[봇] '%s' 등급이 없습니다. 있는 등급: %s"), *Tier, Names.IsEmpty() ? TEXT("(기본만)") : *Names);
+		UE_LOG(LogPung, Warning, TEXT("%s"), *Message);
+		if (GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, Message);
+		}
+		return;
+	}
+
+	const int32 Added = GameMode->AddBots(FMath::Max(Count, 0), TierName);
+	const FString Message = FString::Printf(TEXT("[봇] %s %d명 추가 (정원 %d)"), Tier.IsEmpty() ? TEXT("기본") : *Tier, Added, GameMode->GetMaxPlayers());
 	UE_LOG(LogPung, Log, TEXT("%s"), *Message);
 	if (GEngine)
 	{
@@ -246,7 +263,7 @@ void APungPlayerController::PungAddBot(int32 Count)
 	}
 }
 
-void APungPlayerController::PungRemoveBot(int32 Count)
+void APungPlayerController::PungRemoveBot(int32 Count, const FString& Tier)
 {
 	APungGameMode* GameMode = GetWorld()->GetAuthGameMode<APungGameMode>();
 	if (!GameMode)
@@ -255,7 +272,7 @@ void APungPlayerController::PungRemoveBot(int32 Count)
 		return;
 	}
 
-	const int32 Removed = GameMode->RemoveBots(FMath::Max(Count, 0));
+	const int32 Removed = GameMode->RemoveBots(FMath::Max(Count, 0), Tier.IsEmpty() ? NAME_None : FName(*Tier));
 	const FString Message = FString::Printf(TEXT("[봇] %d명 제거"), Removed);
 	UE_LOG(LogPung, Log, TEXT("%s"), *Message);
 	if (GEngine)

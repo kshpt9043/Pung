@@ -53,6 +53,18 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Target", meta=(ClampMin="0", Units="cm"))
 	float KeepTargetBonus = 300.f;
 
+	/** 탄이 이 수 이하인 상대는 반격하기 어려우므로 LowChargeTargetBonus 만큼 가깝게 친다 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Target", meta=(ClampMin="0"))
+	int32 LowChargeThreshold = 1;
+
+	/** 탄이 거의 없는 상대 가산점. 0 이면 안 쓴다. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Target", meta=(ClampMin="0", Units="cm"))
+	float LowChargeTargetBonus = 0.f;
+
+	/** 나를 노리는 상대(PungDetectThreat) 가산점. 맞서 싸운다. 0 이면 안 쓴다. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Target", meta=(ClampMin="0", Units="cm"))
+	float RetaliationTargetBonus = 0.f;
+
 	/** 조준을 시작해서 쏘기까지 걸리는 시간 (최소~최대 사이 랜덤) */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Aim", meta=(ClampMin="0", Units="s"))
 	float ReactionTimeMin = 0.3f;
@@ -125,6 +137,26 @@ public:
 	/** 전투 위치: 지금 위치에서 1m 멀어질 때마다 빼는 점수. 너무 멀리 돌아가지 않게. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Combat", meta=(ClampMin="0"))
 	float CombatMoveCost = 0.3f;
+
+	/** 위협 감지: 상대의 조준선이 나와 이 각도 안이면 "나를 노린다" 로 본다 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Threat", meta=(ClampMin="0", ClampMax="45", Units="deg"))
+	float ThreatAimAngle = 6.f;
+
+	/** 위협 감지: 이 거리 안의 상대만 본다 (공기총 사거리보다 멀면 의미 없음) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Threat", meta=(ClampMin="0", Units="cm"))
+	float ThreatRange = 2500.f;
+
+	/** 위협 감지: 상대가 이 시간 이상 계속 나를 노려야 알아챈다 (사람의 반응 시간) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Threat", meta=(ClampMin="0", Units="s"))
+	float ThreatReactionTime = 0.25f;
+
+	/** 회피: 조준선 옆으로 비켜설 거리 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Threat", meta=(ClampMin="0", Units="cm"))
+	float DodgeDistance = 350.f;
+
+	/** 회피: 비켜서면서 점프할 확률. 가장자리 근처에서는 뛰지 않는다 (공중에서 맞으면 더 멀리 날아간다). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Threat", meta=(ClampMin="0", ClampMax="1"))
+	float DodgeJumpChance = 0.3f;
 
 	/** 배회: 한 번에 이동할 지점을 찾는 반경 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Roam", meta=(ClampMin="100", Units="cm"))

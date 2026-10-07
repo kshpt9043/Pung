@@ -2,6 +2,7 @@
 
 
 #include "AI/BTService_PungFindTarget.h"
+#include "AI/PungAIController.h"
 #include "AI/PungBotProfile.h"
 #include "AI/PungBotQueries.h"
 #include "AIController.h"
@@ -10,6 +11,7 @@
 #include "Character/PungCharacter.h"
 #include "EngineUtils.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Weapon/PungAirGunComponent.h"
 
 UBTService_PungFindTarget::UBTService_PungFindTarget()
 {
@@ -77,6 +79,10 @@ void UBTService_PungFindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 	const double Now = Self->GetWorld()->GetTimeSeconds();
 
 	// 바라보는 방향 (수평). 시야각 판정용.
+	// 지금 나를 노리는 적 (PungDetectThreat 서비스가 있을 때만 채워진다)
+	const APungAIController* PungController = Cast<APungAIController>(Controller);
+	const AActor* Threat = PungController ? PungController->GetCurrentThreat() : nullptr;
+
 	const FVector ViewForward = Controller->GetControlRotation().Vector().GetSafeNormal2D();
 	const float SightCos = FMath::Cos(FMath::DegreesToRadians(Profile->SightHalfAngle));
 
@@ -116,6 +122,11 @@ void UBTService_PungFindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 		Score -= bNearEdge ? Profile->EdgeTargetBonus : 0.f;
 		Score -= Other == Current ? Profile->KeepTargetBonus : 0.f;
 
+		// 반격 못 하는 상대 (탄이 거의 없음), 나를 노리는 상대
+		const UPungAirGunComponent* OtherGun = Other->GetAirGun();
+		Score -= OtherGun && OtherGun->GetCharges() <= Profile->LowChargeThreshold ? Profile->LowChargeTargetBonus : 0.f;
+		Score -= Other == Threat ? Profile->RetaliationTargetBonus : 0.f;
+
 		if (Score < BestScore)
 		{
 			Best = Other;
@@ -133,6 +144,10 @@ void UBTService_PungFindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 	}
 
 	Blackboard->SetValueAsObject(TargetKey.SelectedKeyName, Best);
+	if (APungAIController* MutableController = Cast<APungAIController>(OwnerComp.GetAIOwner()))
+	{
+		MutableController->SetCurrentTarget(Best);
+	}
 	if (TargetAirborneKey.IsSet())
 	{
 		Blackboard->SetValueAsBool(TargetAirborneKey.SelectedKeyName, bBestAirborne);

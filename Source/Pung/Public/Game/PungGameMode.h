@@ -10,6 +10,21 @@ class APungAIController;
 class APungCharacter;
 class UPungItemData;
 
+/** 봇 등급 하나. 등급마다 컨트롤러 BP(BT, 난이도 프로필)를 따로 둔다. */
+USTRUCT(BlueprintType)
+struct FPungBotTier
+{
+	GENERATED_BODY()
+
+	/** 이 등급의 봇 컨트롤러 클래스. BT 와 프로필은 이 BP 에서 지정한다. */
+	UPROPERTY(EditAnywhere, Category="Bots")
+	TSubclassOf<APungAIController> ControllerClass;
+
+	/** 점수판 이름 앞부분. 예: "Smart Bot" 이면 "Smart Bot 3" */
+	UPROPERTY(EditAnywhere, Category="Bots")
+	FString NamePrefix = TEXT("Bot");
+};
+
 /**
  *  Pung 게임 모드: 시간 내 최다 킬 개인전 (GDD §5, §6). 서버에만 존재한다.
  *  - 떨어지면 사망. 킬 유효 시간 안에 마지막으로 민 사람이 킬을 얻는다.
@@ -46,11 +61,20 @@ public:
 	/** 스폰할 때마다 리스폰 무적을 건다 */
 	virtual void RestartPlayer(AController* NewPlayer) override;
 
-	/** 봇을 Count 명 넣는다. 정원을 넘지 않는 만큼만 넣고, 실제로 넣은 수를 돌려준다. 이후 매치에도 유지된다. */
-	int32 AddBots(int32 Count);
+	/**
+	 *  Tier 등급 봇을 Count 명 넣는다. 정원을 넘지 않는 만큼만 넣고, 실제로 넣은 수를 돌려준다. 이후 매치에도 유지된다.
+	 *  Tier 가 None 이면 기본 등급(BotControllerClass). 없는 등급이면 0.
+	 */
+	int32 AddBots(int32 Count, FName Tier = NAME_None);
 
-	/** 봇을 Count 명 뺀다. 실제로 뺀 수를 돌려준다. */
-	int32 RemoveBots(int32 Count);
+	/** 봇을 Count 명 뺀다 (나중에 들어온 봇부터). Tier 가 None 이면 등급 상관없이. 실제로 뺀 수를 돌려준다. */
+	int32 RemoveBots(int32 Count, FName Tier = NAME_None);
+
+	/** 이 이름의 등급이 있는지. None 은 기본 등급이라 항상 있다. */
+	bool HasBotTier(FName Tier) const;
+
+	/** 지정된 추가 등급 이름들 (안내 메시지용) */
+	TArray<FName> GetBotTierNames() const;
 
 	/** 아이템 패드에 목록을 따로 지정하지 않았을 때 나오는 아이템들 */
 	const TArray<TObjectPtr<UPungItemData>>& GetDefaultItemPool() const { return DefaultItemPool; }
@@ -83,12 +107,23 @@ protected:
 
 	void RespawnPlayer(TWeakObjectPtr<AController> Controller);
 
-	/** 봇 하나를 만들어 스폰한다 */
-	bool SpawnBot();
+	/** Tier 등급 봇 하나를 만들어 스폰한다 */
+	bool SpawnBot(FName Tier);
 
-	/** 봇 컨트롤러 클래스. BT 와 난이도는 이 클래스(BP)에서 지정한다. */
+	/** 기본 등급 봇 컨트롤러 클래스 (등급을 지정하지 않았을 때). BT 와 난이도는 이 클래스(BP)에서 지정한다. */
 	UPROPERTY(EditDefaultsOnly, Category="Bots")
 	TSubclassOf<APungAIController> BotControllerClass;
+
+	/** 기본 등급 봇의 점수판 이름 앞부분 */
+	UPROPERTY(EditDefaultsOnly, Category="Bots")
+	FString BotNamePrefix = TEXT("Bot");
+
+	/**
+	 *  추가 봇 등급. 키가 등급 이름이다 (대소문자 무시). 예: Smart → BP_PungAIController_Smart.
+	 *  PungAddBot 2 Smart 처럼 넣는다.
+	 */
+	UPROPERTY(EditDefaultsOnly, Category="Bots")
+	TMap<FName, FPungBotTier> BotTiers;
 
 	/** 아이템 패드의 기본 아이템 목록 (GDD §3.6) */
 	UPROPERTY(EditDefaultsOnly, Category="Items")

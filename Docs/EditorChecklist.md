@@ -204,6 +204,25 @@
   - [ ] 매치가 끝나고 다시 시작해도 봇 수가 유지되는지
   - [ ] Gameplay Debugger (`'` 키) 로 BT / 블랙보드 상태 확인 가능
 
+### 7.1 똑똑한 봇 (등급 Smart, EQS)
+
+자세한 조립 순서는 세션 가이드를 따른다. 빠뜨리지 말 것만 적는다.
+
+- [ ] `DA_BotProfile_Smart` (Normal 복제 후: 반응 0.2~0.4초, 조준 지연 0.12초, 오차 2°, 저글 확률 0.8, Low Charge Target Bonus 700, Retaliation Target Bonus 500)
+- [ ] 블랙보드 `BB_PungBot_Smart` (BB_PungBot 복제) 키 추가: `bThreatened` (Bool), `ThreatActor` (Object, Actor), `DodgeLocation` (Vector), `RetreatLocation` (Vector), `ItemLocation` (Vector)
+- [ ] EQS 쿼리 4개: `EQS_Pung_Attack`, `EQS_Pung_Retreat`, `EQS_Pung_Roam`, `EQS_Pung_Item`
+- [ ] 비헤이비어 트리 `BT_PungBot_Smart` (블랙보드 = `BB_PungBot_Smart`)
+  - [ ] 루트 아래 서비스: Pung Find Target, Pung Check Edge, **Pung Detect Threat** (Threatened Key = bThreatened, Threat Key = ThreatActor)
+  - [ ] 모든 Run EQS Query 의 Run Mode = Single Best Item, Move To 의 Allow Partial Path 끄기
+- [ ] `BP_PungAIController_Smart` (부모: `PungAIController`) → Behavior Tree = `BT_PungBot_Smart`, Bot Profile = `DA_BotProfile_Smart`
+- [ ] `BP_PungGameMode` → Bots → **Bot Tiers** 에 항목 추가: 키 `Smart`, Controller Class = `BP_PungAIController_Smart`, Name Prefix = `Smart Bot`
+- [ ] 확인
+  - [ ] `PungAddBot 2 Smart` → 이름이 "Smart Bot N", 기본 봇과 섞어 넣기 (`PungAddBot 2`)
+  - [ ] 내가 조준하고 있으면 옆으로 비켜서는지 (Gameplay Debugger 에서 bThreatened)
+  - [ ] 탄이 1발 이하면 물러나는지, 가득 차면 다시 붙는지
+  - [ ] `PungRemoveBot 1 Smart` → Smart 만 빠지는지. 매치 재시작 후 등급별 수 유지
+  - [ ] EQS 테스트 폰(`EQSTestingPawn`)으로 쿼리 점수 확인
+
 ---
 
 ## 8. 관전 (리스폰 대기 중)
@@ -224,7 +243,7 @@
 | `pung.Debug.Blast 1` | 조준선(흰), 자기 폭발 반경(노랑), 남 폭발 반경(청록), 넉백 방향, 벽에 막힌 대상(회색). **탄이 안 보일 때도 판정 확인 가능** |
 | `pung.Knockback.ClientApply 0/1` | 넉백을 본인 화면에서도 바로 적용할지 (끊김 비교) |
 | `pung.Debug.Trajectory 1` | 점프, 로켓 점프, 넉백 뒤 비행 궤적과 "시간, 최고 높이, 수평 거리" 표시. 넉백 튜닝과 맵 치수 측정용 |
-| `PungAddBot [수]` / `PungRemoveBot [수]` | 봇 추가/제거 (호스트) |
+| `PungAddBot [수] [등급]` / `PungRemoveBot [수] [등급]` | 봇 추가/제거 (호스트). 예: `PungAddBot 2 Smart` |
 | `PungStartMatch` / `PungEndMatch` | 대기 중 바로 시작 / 진행 중 바로 종료 (호스트) |
 | `PungGiveItem <에셋 이름>` | 아이템 받기 (호스트) |
 | `PungHost [인원]` / `PungFind` / `PungJoin [번호]` / `PungLeave` / `PungInvite` / `PungSession` / `PungBuildFilter 0/1` | Steam 세션 |

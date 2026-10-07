@@ -21,6 +21,9 @@ void APungAIController::OnPossess(APawn* InPawn)
 {
 	Super::OnPossess(InPawn);
 
+	CurrentTarget.Reset();
+	CurrentThreat.Reset();
+
 	if (!BehaviorTree)
 	{
 		UE_LOG(LogPung, Warning, TEXT("[봇] '%s': BT 가 지정되지 않아 가만히 있습니다. BP 에서 Behavior Tree 를 지정하세요."), *GetNameSafe(this));
