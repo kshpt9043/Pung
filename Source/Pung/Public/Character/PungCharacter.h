@@ -173,6 +173,15 @@ public:
 	AController* GetLastAttacker() const { return LastAttacker.Get(); }
 	double GetLastAttackTime() const { return LastAttackTime; }
 
+	/** 서버 전용 (기록용). 남에게 마지막으로 밀렸을 때 내 위치 */
+	FVector GetLastHitLocation() const { return LastHitLocation; }
+
+	/** 서버 전용 (기록용). 최근 Window 초 안에 Attacker 에게 밀린 횟수 */
+	int32 CountRecentHitsBy(const AController* Attacker, double Window) const;
+
+	/** 스폰된 시각 (월드 시간, 초) */
+	double GetSpawnTime() const { return SpawnTime; }
+
 	USkeletalMeshComponent* GetFirstPersonMesh() const { return FirstPersonMesh; }
 	UCameraComponent* GetFirstPersonCamera() const { return FirstPersonCamera; }
 	UPungAirGunComponent* GetAirGun() const { return AirGun; }
@@ -254,6 +263,13 @@ protected:
 	TWeakObjectPtr<AController> LastAttacker;
 
 	double LastAttackTime = -1.0e9;
+
+	FVector LastHitLocation = FVector::ZeroVector;
+
+	/** 남에게 밀린 기록 (누가, 언제). 오래된 것은 지운다. */
+	TArray<TPair<TWeakObjectPtr<AController>, double>> RecentHits;
+
+	double SpawnTime = 0.0;
 
 	/** 이 시각(월드 시간)까지 이동 입력이 약해진다. 서버와 소유 클라이언트에서 각자 잰다. */
 	double KnockbackControlEndTime = -1.0e9;

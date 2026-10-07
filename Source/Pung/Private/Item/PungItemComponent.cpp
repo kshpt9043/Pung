@@ -2,6 +2,8 @@
 
 
 #include "Item/PungItemComponent.h"
+#include "Engine/GameInstance.h"
+#include "Game/PungTelemetrySubsystem.h"
 #include "Character/PungCharacter.h"
 #include "Item/PungItemData.h"
 #include "Item/PungItemEffect.h"
@@ -37,6 +39,11 @@ void UPungItemComponent::GiveItem(const UPungItemData* Item)
 	if (!Item || !Character || !Character->HasAuthority())
 	{
 		return;
+	}
+
+	if (UPungTelemetrySubsystem* Telemetry = Character->GetGameInstance()->GetSubsystem<UPungTelemetrySubsystem>())
+	{
+		Telemetry->RecordItem(Character, Item, TEXT("pickup"));
 	}
 
 	// 데이터 에셋은 읽기만 하지만 복제 목록에 넣으려면 const 를 뗀다
@@ -149,6 +156,11 @@ bool UPungItemComponent::UseFromServer()
 	if (!Item || !Item->Effect || !Item->Effect->OnUsed(Character))
 	{
 		return false;
+	}
+
+	if (UPungTelemetrySubsystem* Telemetry = Character->GetGameInstance()->GetSubsystem<UPungTelemetrySubsystem>())
+	{
+		Telemetry->RecordItem(Character, Item, TEXT("use"));
 	}
 
 	// 아이템 사용도 공격이므로 사격과 똑같이 리스폰 무적이 풀린다 (GDD §5.4)

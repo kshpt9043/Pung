@@ -8,7 +8,11 @@
 #include "EngineUtils.h"
 #include "Engine/World.h"
 #include "Engine/GameInstance.h"
+#include "Game/PungAutoMatchSubsystem.h"
 #include "Game/PungGameState.h"
+#include "Game/PungTelemetrySubsystem.h"
+#include "GameFramework/WorldSettings.h"
+#include "HAL/PlatformMisc.h"
 #include "Game/PungMatchSubsystem.h"
 #include "Online/PungSessionSubsystem.h"
 #include "Player/PungPlayerController.h"
@@ -45,6 +49,20 @@ void APungGameMode::StartPlay()
 		Bots->DesiredBotTiers = MoveTemp(Restored);
 	}
 
+	// 자동 대전: 처음 한 번 봇을 넣고 (이후에는 위에서 복원된다), 게임 속도를 맞춘다
+	if (UPungAutoMatchSubsystem* AutoMatch = GetGameInstance()->GetSubsystem<UPungAutoMatchSubsystem>(); AutoMatch && AutoMatch->IsActive())
+	{
+		if (!AutoMatch->bBotsAdded)
+		{
+			AutoMatch->bBotsAdded = true;
+			for (const FName Tier : AutoMatch->GetBotTiers())
+			{
+				AddBots(1, Tier);
+			}
+		}
+		GetWorldSettings()->SetTimeDilation(AutoMatch->GetTimeScale());
+	}
+
 	// 맵이 열리면 대기(자유 연습)부터. 매치 재시작이면 잠시 뒤 바로 카운트다운.
 	EnterWaiting();
 }
@@ -57,7 +75,18 @@ void APungGameMode::EnterWaiting()
 	PungGameState->SetMatchPhase(EPungMatchPhase::WaitingToStart);
 
 	UPungMatchSubsystem* Match = GetGameInstance()->GetSubsystem<UPungMatchSubsystem>();
-	if (Match && Match->bQuickStartNextMatch)
+	if (GetAutoMatch())
+	{
+		// 자동 대전: 사람을 기다리지 않고 곧바로
+		if (Match)
+		{
+			Match->bQuickStartNextMatch = false;
+		}
+		bQuickStartScheduled = true;
+		GetWorldTimerManager().SetTimer(CountdownStartTimer, this, &APungGameMode::BeginCountdown, 1.f, false);
+		UE_LOG(LogPung, Log, TEXT("[자동 대전] 곧 시작"));
+	}
+	else if (Match && Match->bQuickStartNextMatch)
 	{
 		Match->bQuickStartNextMatch = false;
 		bQuickStartScheduled = true;
@@ -216,12 +245,18 @@ void APungGameMode::StartMatch()
 	APungGameState* PungGameState = GetGameState<APungGameState>();
 	PungGameState->SetWinners({});
 	PungGameState->SetPhaseTimerEnd(0.0);
-	PungGameState->SetMatchEndTime(PungGameState->GetServerWorldTimeSeconds() + MatchDuration);
+	const float Duration = GetMatchDuration();
+	PungGameState->SetMatchEndTime(PungGameState->GetServerWorldTimeSeconds() + Duration);
 	PungGameState->SetMatchPhase(EPungMatchPhase::InProgress);
 
-	GetWorldTimerManager().SetTimer(MatchTimer, this, &APungGameMode::EndMatch, MatchDuration, false);
+	GetWorldTimerManager().SetTimer(MatchTimer, this, &APungGameMode::EndMatch, Duration, false);
 
-	UE_LOG(LogPung, Log, TEXT("[매치] 시작 (제한 시간 %.0f초)"), MatchDuration);
+	if (UPungTelemetrySubsystem* Telemetry = GetGameInstance()->GetSubsystem<UPungTelemetrySubsystem>())
+	{
+		Telemetry->BeginMatch(GetWorld());
+	}
+
+	UE_LOG(LogPung, Log, TEXT("[매치] 시작 (제한 시간 %.0f초)"), Duration);
 }
 
 void APungGameMode::EndMatch()
@@ -233,8 +268,9 @@ void APungGameMode::EndMatch()
 	TArray<APlayerState*> Winners;
 	for (APlayerState* PlayerState : PungGameState->PlayerArray)
 	{
+		// 관전만 하는 사람(자동 대전)은 우승 후보가 아니다
 		const APungPlayerState* PungPlayerState = Cast<APungPlayerState>(PlayerState);
-		if (!PungPlayerState)
+		if (!PungPlayerState || PungPlayerState->IsSpectator())
 		{
 			continue;
 		}
@@ -267,6 +303,24 @@ void APungGameMode::EndMatch()
 	for (const APlayerState* Winner : Winners)
 	{
 		UE_LOG(LogPung, Log, TEXT("[매치] 종료. 우승: %s (%d킬)"), *Winner->GetPlayerName(), BestKills);
+	}
+
+	if (UPungTelemetrySubsystem* Telemetry = GetGameInstance()->GetSubsystem<UPungTelemetrySubsystem>())
+	{
+		Telemetry->RecordMatchEnd(PungGameState, Winners);
+	}
+
+	// 자동 대전: 정해진 판 수를 다 했으면 종료, 아니면 결과 화면 없이 바로 다음 판
+	if (UPungAutoMatchSubsystem* AutoMatch = GetGameInstance()->GetSubsystem<UPungAutoMatchSubsystem>(); AutoMatch && AutoMatch->IsActive())
+	{
+		if (AutoMatch->FinishMatch())
+		{
+			UE_LOG(LogPung, Log, TEXT("[자동 대전] %d판을 모두 마쳐 종료합니다"), AutoMatch->GetMatchesPlayed());
+			FPlatformMisc::RequestExit(false);
+			return;
+		}
+		GetWorldTimerManager().SetTimer(MatchTimer, this, &APungGameMode::RestartMatch, 1.f, false);
+		return;
 	}
 
 	if (bAutoRestartMatch)
@@ -321,6 +375,11 @@ void APungGameMode::HandleCharacterFell(APungCharacter* Victim)
 		GetGameState<APungGameState>()->MulticastPlayerFell(KillerState, VictimState);
 	}
 
+	if (UPungTelemetrySubsystem* Telemetry = GetGameInstance()->GetSubsystem<UPungTelemetrySubsystem>())
+	{
+		Telemetry->RecordFall(Victim, Killer, Killer ? Victim->CountRecentHitsBy(Killer, KillCreditWindow) : 0);
+	}
+
 	UE_LOG(LogPung, Log, TEXT("[낙사] %s ← %s"),
 		VictimState ? *VictimState->GetPlayerName() : TEXT("알 수 없음"),
 		KillerState ? *KillerState->GetPlayerName() : TEXT("자멸"));
@@ -356,6 +415,16 @@ bool APungGameMode::ShouldSpawnAtStartSpot(AController* Player)
 
 void APungGameMode::RestartPlayer(AController* NewPlayer)
 {
+	// 자동 대전: 사람은 스폰하지 않고 관전만 한다 (봇끼리의 기록만 남기기 위함)
+	if (GetAutoMatch() && Cast<APlayerController>(NewPlayer))
+	{
+		if (NewPlayer->PlayerState)
+		{
+			NewPlayer->PlayerState->SetIsSpectator(true);
+		}
+		return;
+	}
+
 	Super::RestartPlayer(NewPlayer);
 
 	if (APungPlayerState* State = NewPlayer ? NewPlayer->GetPlayerState<APungPlayerState>() : nullptr)
@@ -367,6 +436,18 @@ void APungGameMode::RestartPlayer(AController* NewPlayer)
 	{
 		Character->SetInvulnerable(true, SpawnInvulnerabilityDuration);
 	}
+}
+
+const UPungAutoMatchSubsystem* APungGameMode::GetAutoMatch() const
+{
+	const UPungAutoMatchSubsystem* AutoMatch = GetGameInstance()->GetSubsystem<UPungAutoMatchSubsystem>();
+	return AutoMatch && AutoMatch->IsActive() ? AutoMatch : nullptr;
+}
+
+float APungGameMode::GetMatchDuration() const
+{
+	const UPungAutoMatchSubsystem* AutoMatch = GetAutoMatch();
+	return AutoMatch && AutoMatch->GetMatchDurationOverride() > 0.f ? AutoMatch->GetMatchDurationOverride() : MatchDuration;
 }
 
 int32 APungGameMode::GetMaxPlayers() const

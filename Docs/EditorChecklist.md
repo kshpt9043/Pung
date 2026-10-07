@@ -226,6 +226,18 @@
 
 ---
 
+## 7.2 자동 대전과 기록 (에디터 작업 없음)
+
+- [ ] 빌드 후 `Run-AutoMatch.bat` 실행 → 로그 창에 `[자동 대전] 켜짐`, 매치마다 `[기록] 매치 N 저장`
+  - 인자: `Run-AutoMatch.bat "Default:3,Smart:3" 20 120 2` (봇 구성, 판 수, 매치 초, 속도 배율)
+  - 봇 구성의 등급 이름은 게임 모드 Bot Tiers 키와 같아야 한다 (없는 등급은 로그에 경고하고 빠짐)
+  - 사람 1명 + 봇 합계가 정원(세션 없이 8명)을 넘지 않게. 봇은 최대 7명
+- [ ] 끝나면 `Saved/Telemetry/<실행 시각>/` 에 CSV 4개가 있는지
+- [ ] 사람끼리 플레이도 기록하려면 콘솔 `pung.Telemetry 1` (호스트)
+- [ ] 패키징한 exe: `Pung.exe -nullrhi -nosound -nosteam -PungAutoMatch -PungBots=Default:2,Smart:2 -PungMatches=10` (기록은 exe 옆 `Pung/Saved/Telemetry`)
+
+---
+
 ## 8. 관전 (리스폰 대기 중)
 
 - [ ] 설정 없이 동작한다. 확인만:
@@ -243,6 +255,7 @@
 |---|---|
 | `pung.Debug.Blast 1` | 조준선(흰), 자기 폭발 반경(노랑), 남 폭발 반경(청록), 넉백 방향, 벽에 막힌 대상(회색). **탄이 안 보일 때도 판정 확인 가능** |
 | `pung.Knockback.ClientApply 0/1` | 넉백을 본인 화면에서도 바로 적용할지 (끊김 비교) |
+| `pung.Telemetry 1` | 플레이 기록 CSV 를 `Saved/Telemetry` 에 남김 (호스트, 매치 진행 중만) |
 | `pung.Debug.Trajectory 1` | 점프, 로켓 점프, 넉백 뒤 비행 궤적과 "시간, 최고 높이, 수평 거리" 표시. 넉백 튜닝과 맵 치수 측정용 |
 | `PungAddBot [수] [등급]` / `PungRemoveBot [수] [등급]` | 봇 추가/제거 (호스트). 예: `PungAddBot 2 Smart` |
 | `PungStartMatch` / `PungEndMatch` | 대기 중 바로 시작 / 진행 중 바로 종료 (호스트) |

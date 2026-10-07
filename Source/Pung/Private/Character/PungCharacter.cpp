@@ -9,6 +9,8 @@
 #include "EnhancedInputComponent.h"
 #include "Game/PungGameMode.h"
 #include "Game/PungGameState.h"
+#include "Engine/GameInstance.h"
+#include "Game/PungTelemetrySubsystem.h"
 #include "GameFramework/PlayerState.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "InputActionValue.h"
@@ -102,6 +104,8 @@ void APungCharacter::FellOutOfWorld(const UDamageType& DamageType)
 void APungCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	SpawnTime = GetWorld()->GetTimeSeconds();
 
 	// 매치가 이미 끝난 뒤 생성됐으면 바로 멈춘다. 게임 상태가 아직 없으면 나중에 게임 상태가 알려준다.
 	if (const APungGameState* PungGameState = GetWorld()->GetGameState<APungGameState>())
@@ -228,10 +232,24 @@ void APungCharacter::ApplyKnockback(const FVector& Knockback, AController* Insti
 	// 닻 같은 아이템이 받는 넉백을 줄인다
 	const FVector ScaledKnockback = Knockback * Items->GetIncomingKnockbackScale(bSelf);
 
+	const double Now = GetWorld()->GetTimeSeconds();
 	if (InstigatorController && (!bSelf || bSelfKnockbackOverridesLastAttacker))
 	{
 		LastAttacker = InstigatorController;
-		LastAttackTime = GetWorld()->GetTimeSeconds();
+		LastAttackTime = Now;
+	}
+
+	// 기록용: 남에게 밀린 위치와 횟수
+	if (InstigatorController && !bSelf)
+	{
+		LastHitLocation = GetActorLocation();
+		RecentHits.RemoveAll([Now](const TPair<TWeakObjectPtr<AController>, double>& Hit) { return Now - Hit.Value > 10.0; });
+		RecentHits.Emplace(TWeakObjectPtr<AController>(InstigatorController), Now);
+	}
+
+	if (UPungTelemetrySubsystem* Telemetry = GetGameInstance()->GetSubsystem<UPungTelemetrySubsystem>())
+	{
+		Telemetry->RecordKnockback(this, InstigatorController, ScaledKnockback);
 	}
 
 	LaunchFromKnockback(ScaledKnockback, bSelf);
@@ -240,6 +258,20 @@ void APungCharacter::ApplyKnockback(const FVector& Knockback, AController* Insti
 	{
 		ClientApplyKnockback(ScaledKnockback, bSelf);
 	}
+}
+
+int32 APungCharacter::CountRecentHitsBy(const AController* Attacker, double Window) const
+{
+	const double Now = GetWorld()->GetTimeSeconds();
+	int32 Count = 0;
+	for (const TPair<TWeakObjectPtr<AController>, double>& Hit : RecentHits)
+	{
+		if (Attacker && Hit.Key.Get() == Attacker && Now - Hit.Value <= Window)
+		{
+			++Count;
+		}
+	}
+	return Count;
 }
 
 void APungCharacter::ClientApplyKnockback_Implementation(FVector_NetQuantize10 Knockback, bool bSelf)

@@ -8,6 +8,7 @@
 
 class APungAIController;
 class APungCharacter;
+class UPungAutoMatchSubsystem;
 class UPungItemData;
 
 /** 봇 등급 하나. 등급마다 컨트롤러 BP(BT, 난이도 프로필)를 따로 둔다. */
@@ -106,6 +107,12 @@ protected:
 	void RestartMatch();
 
 	void RespawnPlayer(TWeakObjectPtr<AController> Controller);
+
+	/** 자동 대전 모드(-PungAutoMatch)가 켜져 있으면 그 설정. 아니면 null. */
+	const UPungAutoMatchSubsystem* GetAutoMatch() const;
+
+	/** 이번 매치 시간 (자동 대전 설정이 있으면 그것) */
+	float GetMatchDuration() const;
 
 	/** Tier 등급 봇 하나를 만들어 스폰한다 */
 	bool SpawnBot(FName Tier);
