@@ -20,7 +20,6 @@ APungWindZone::APungWindZone()
 	Volume->SetGenerateOverlapEvents(false);
 	Volume->SetCanEverAffectNavigation(false);
 	Volume->ShapeColor = FColor(80, 200, 255);
-	Volume->LineThickness = 2.f;
 	Volume->SetHiddenInGame(false);
 	RootComponent = Volume;
 
