@@ -182,6 +182,17 @@
 
 ---
 
+## 6.2 아레나 기믹 (맵에 끌어다 놓기만 하면 됨)
+
+- [ ] 콘텐츠 브라우저 → C++ Classes → Pung → `PungJumpPad` / `PungCrumblePlatform` / `PungWindZone` 를 맵에 드래그 (BP 를 만들어도 되고 안 만들어도 됨)
+- [ ] 점프 패드: 액터 위치를 바닥 표면에. 회전으로 방향, 디테일 Launch Velocity 로 세기 (X 앞, Z 위). `pung.Debug.Trajectory 1` 로 궤적 확인
+- [ ] 무너지는 발판: 액터 위치가 발판 중심. Platform Size 로 크기. 가장자리나 다리 중간에 두면 효과가 크다
+- [ ] 바람 구역: 상자 범위(디테일 Box Extent 또는 스케일)와 회전(화살표 방향)으로 조절. Wind Speed 400 부터, 상승 기류는 Updraft Acceleration (2000 이상이면 뜬다)
+- [ ] 확인: 점프 패드를 PIE 클라이언트 화면에서도 끊김 없이 타는지, 무너진 발판이 5초 뒤 다시 생기는지, 바람 속에서 서 있으면 밀리고 맞서 걸으면 느려지는지
+- 진짜 외형을 만들면: 점프 패드/바람 구역은 Use Placeholder Visual 끄기, 무너지는 발판은 Platform 메시를 바꾸고 Use Placeholder Color 끄기
+
+---
+
 ## 7. 봇
 
 - [ ] `DA_BotProfile_Normal` 만들기 (Data Asset → `PungBotProfile`). 기본값으로 시작

@@ -2,6 +2,7 @@
 
 
 #include "Character/PungCharacterMovementComponent.h"
+#include "Arena/PungWindZone.h"
 #include "Character/PungCharacter.h"
 
 bool UPungCharacterMovementComponent::DoJump(bool bReplayingMoves, float DeltaTime)
@@ -39,4 +40,35 @@ void UPungCharacterMovementComponent::RequestPathMove(const FVector& MoveInput)
 	// 가속도 기반 길찾기 이동은 사람의 이동 입력과 같으므로 똑같이 배율을 곱한다
 	const APungCharacter* PungCharacter = Cast<APungCharacter>(CharacterOwner);
 	Super::RequestPathMove(MoveInput * (PungCharacter ? PungCharacter->GetMoveInputScale() : 1.f));
+}
+
+void UPungCharacterMovementComponent::CalcVelocity(float DeltaTime, float Friction, bool bFluid, float BrakingDeceleration)
+{
+	FVector Wind;
+	float Updraft;
+	APungWindZone::GetWindAt(GetWorld(), UpdatedComponent->GetComponentLocation(), Wind, Updraft);
+
+	// 지난번에 실은 바람을 빼고 내 속도만 제동/가속한다.
+	// 단, 공중에서 바람 구역을 벗어나면 빼지 않는다 (실려 가던 속도를 그대로 갖고 날아간다).
+	const bool bLeftWindInAir = Wind.IsNearlyZero() && IsFalling();
+	if (!bLeftWindInAir)
+	{
+		Velocity -= AppliedWindVelocity;
+	}
+
+	Super::CalcVelocity(DeltaTime, Friction, bFluid, BrakingDeceleration);
+
+	Velocity += Wind;
+	AppliedWindVelocity = Wind;
+}
+
+FVector UPungCharacterMovementComponent::NewFallVelocity(const FVector& InitialVelocity, const FVector& Gravity, float DeltaTime) const
+{
+	FVector Wind;
+	float Updraft = 0.f;
+	if (UpdatedComponent)
+	{
+		APungWindZone::GetWindAt(GetWorld(), UpdatedComponent->GetComponentLocation(), Wind, Updraft);
+	}
+	return Super::NewFallVelocity(InitialVelocity, Gravity + FVector(0.f, 0.f, Updraft), DeltaTime);
 }
