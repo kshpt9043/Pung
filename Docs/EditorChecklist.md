@@ -96,7 +96,7 @@
 - [ ] `DA_AirGunData` 만들기 (Data Asset → `PungAirGunData`). 값은 GDD §10 그대로 두고 시작
   - Max Range 4000, Proximity Fuse Radius 130, Visual Projectile Speed 2500
   - Blast Radius 300, Knockback Strength 2120 (에디터 표시 21.2 m/s), Edge Strength Scale 0.25
-  - Other Blast Radius Scale 1.6, Other Knockback Scale 0.82
+  - Other Blast Radius Scale 1.6, Other Knockback Scale 0.7
   - Max Charges 3, Recharge Time 1.5, Fire Interval 0.12 (원작 연사 감각으로 변경)
 - [ ] `BP_PungCharacter` → Air Gun → Gun Data 에 지정 (§2)
 - [ ] `BP_PungAirProjectile` 만들기 (부모: `PungAirProjectile`)
@@ -156,8 +156,8 @@
 
   | 에셋 이름 (제안) | Launch Scale | Impact Scale | 나머지 |
   |---|---|---|---|
-  | `DA_Prop_Crate` (가벼운 상자) | 1.3 | 0.8 | 기본값 |
-  | `DA_Prop_Barrel` (무거운 통) | 0.6 | 1.4 | 기본값 |
+  | `DA_Prop_Crate` (가벼운 상자) | 1.5 | 0.8 | 기본값 |
+  | `DA_Prop_Barrel` (무거운 통) | 0.7 | 1.4 | 기본값 |
 
 - [ ] `BP_PungProp_Crate` 만들기 (부모: `PungProp`)
   - [ ] Mesh → Static Mesh = 상자 메시 (예: 엔진 `Cube`, 스케일 1~1.2). **Simple Collision 이 있는 메시**여야 한다

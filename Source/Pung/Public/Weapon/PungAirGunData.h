@@ -59,7 +59,7 @@ public:
 
 	/** 남을 밀 때 기준 세기에 곱하는 배율 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Blast", meta=(ClampMin="0"))
-	float OtherKnockbackScale = 0.82f;
+	float OtherKnockbackScale = 0.7f;
 
 	/** 완충 시 저장되는 발사 횟수 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ammo", meta=(ClampMin="1"))
