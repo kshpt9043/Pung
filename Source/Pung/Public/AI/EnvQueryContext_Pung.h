@@ -33,7 +33,10 @@ public:
 	virtual void ProvideContext(FEnvQueryInstance& QueryInstance, FEnvQueryContextData& ContextData) const override;
 };
 
-/** 나를 뺀 모든 캐릭터 (사람, 봇). 무적인 상대도 포함한다. */
+/**
+ *  봇이 보거나 들어서 알아챈 적들의 마지막 위치 (프로필 Known Enemy Memory Time 안).
+ *  벽 너머 적의 지금 위치는 모른다. 봇이 아닌 쿼리 주인(EQS 테스트 폰)이면 나를 뺀 모든 캐릭터.
+ */
 UCLASS(meta=(DisplayName="Pung Enemies"))
 class PUNG_API UEnvQueryContext_PungEnemies : public UEnvQueryContext
 {

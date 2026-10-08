@@ -42,6 +42,24 @@ public:
 	AActor* GetCurrentThreat() const { return CurrentThreat.Get(); }
 	void SetCurrentThreat(AActor* InThreat) { CurrentThreat = InThreat; }
 
+	/** 적을 봤다 (PungFindTarget 이 알아챈 적마다 호출). 마지막 위치를 기억한다. */
+	void NoteSeenEnemy(AActor* Enemy);
+
+	/**
+	 *  소리를 들었다 (PungBot::ReportNoise 가 호출). Source 가 있으면 그 적의 위치도 기억한다 (총소리).
+	 *  없으면 소리 난 자리만 (폭발음).
+	 */
+	void HearNoise(const FVector& Location, AActor* Source);
+
+	/** Source 의 총소리를 MaxAge 초 안에 들었는지 */
+	bool WasHeardRecently(const AActor* Source, float MaxAge) const;
+
+	/** MaxAge 초 안에 들은 마지막 소리의 위치 */
+	bool GetRecentNoise(float MaxAge, FVector& OutLocation) const;
+
+	/** MaxAge 초 안에 보거나 들은 적들의 마지막 위치 (EQS 컨텍스트 Pung Enemies) */
+	void GetKnownEnemyLocations(float MaxAge, TArray<FVector>& OutLocations) const;
+
 protected:
 
 	/** 리스폰할 때마다 새 폰에서 BT 를 처음부터 다시 돌린다 */
@@ -61,4 +79,16 @@ private:
 
 	TWeakObjectPtr<AActor> CurrentTarget;
 	TWeakObjectPtr<AActor> CurrentThreat;
+
+	/** 알아챈 적의 마지막 위치와 시각 (보거나 총소리를 들었을 때) */
+	struct FKnownEnemy
+	{
+		FVector Location = FVector::ZeroVector;
+		double LastKnownTime = -1.0e9;
+		double LastHeardTime = -1.0e9;
+	};
+	TMap<TWeakObjectPtr<AActor>, FKnownEnemy> KnownEnemies;
+
+	FVector LastNoiseLocation = FVector::ZeroVector;
+	double LastNoiseTime = -1.0e9;
 };

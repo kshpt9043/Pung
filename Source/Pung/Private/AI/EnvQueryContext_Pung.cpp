@@ -3,6 +3,7 @@
 
 #include "AI/EnvQueryContext_Pung.h"
 #include "AI/PungAIController.h"
+#include "AI/PungBotProfile.h"
 #include "AI/PungBotQueries.h"
 #include "Character/PungCharacter.h"
 #include "EngineUtils.h"
@@ -56,6 +57,16 @@ void UEnvQueryContext_PungThreat::ProvideContext(FEnvQueryInstance& QueryInstanc
 
 void UEnvQueryContext_PungEnemies::ProvideContext(FEnvQueryInstance& QueryInstance, FEnvQueryContextData& ContextData) const
 {
+	// 봇이면 보거나 들어서 알아챈 적의 마지막 위치만 (벽 너머 적의 지금 위치를 알지 못하게)
+	if (const APungAIController* Controller = GetQuerierController(QueryInstance))
+	{
+		TArray<FVector> Known;
+		Controller->GetKnownEnemyLocations(Controller->GetBotProfile()->KnownEnemyMemoryTime, Known);
+		UEnvQueryItemType_Point::SetContextHelper(ContextData, Known);
+		return;
+	}
+
+	// 봇이 아니면 (EQS 테스트 폰) 모든 캐릭터
 	const AActor* Self = GetQuerierPawn(QueryInstance);
 	TArray<AActor*> Enemies;
 	for (TActorIterator<APungCharacter> It(QueryInstance.World); It; ++It)

@@ -80,7 +80,7 @@ void UBTService_PungFindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 
 	// 바라보는 방향 (수평). 시야각 판정용.
 	// 지금 나를 노리는 적 (PungDetectThreat 서비스가 있을 때만 채워진다)
-	const APungAIController* PungController = Cast<APungAIController>(Controller);
+	APungAIController* PungController = Cast<APungAIController>(OwnerComp.GetAIOwner());
 	const AActor* Threat = PungController ? PungController->GetCurrentThreat() : nullptr;
 
 	const FVector ViewForward = Controller->GetControlRotation().Vector().GetSafeNormal2D();
@@ -109,9 +109,17 @@ void UBTService_PungFindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 		const bool bInSight = FVector::DotProduct(ViewForward, ToOther) >= SightCos;
 		const bool bClose = Distance <= Profile->CloseAwarenessRadius;
 		const bool bRemembered = Other == Current && Now - Memory->LastSeenTime <= Profile->TargetMemoryTime;
-		if (!bInSight && !bClose && !bRemembered)
+		// 총소리를 들은 상대는 시야각 밖이어도 알아챈다 (그쪽을 돌아본 셈)
+		const bool bHeard = PungController && PungController->WasHeardRecently(Other, Profile->HearingMemoryTime);
+		if (!bInSight && !bClose && !bRemembered && !bHeard)
 		{
 			continue;
+		}
+
+		// 알아챈 적은 마지막 위치를 기억해 둔다 (EQS 컨텍스트 Pung Enemies)
+		if (PungController)
+		{
+			PungController->NoteSeenEnemy(Other);
 		}
 
 		// 떨어뜨리기 좋은 상대일수록 가깝게 친다
@@ -144,9 +152,25 @@ void UBTService_PungFindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 	}
 
 	Blackboard->SetValueAsObject(TargetKey.SelectedKeyName, Best);
-	if (APungAIController* MutableController = Cast<APungAIController>(OwnerComp.GetAIOwner()))
+	if (PungController)
 	{
-		MutableController->SetCurrentTarget(Best);
+		PungController->SetCurrentTarget(Best);
+
+		// 노릴 적이 없는데 최근에 소리를 들었으면 그쪽을 돌아본다. 대상이 생기면 조준이 시점을 넘겨받는다.
+		FVector NoiseLocation;
+		if (!Best && PungController->GetRecentNoise(Profile->HearingMemoryTime, NoiseLocation))
+		{
+			PungController->SetFocalPoint(NoiseLocation, EAIFocusPriority::Gameplay);
+			Memory->bLookingAtNoise = true;
+		}
+		else if (Memory->bLookingAtNoise)
+		{
+			if (!Best)
+			{
+				PungController->ClearFocus(EAIFocusPriority::Gameplay);
+			}
+			Memory->bLookingAtNoise = false;
+		}
 	}
 	if (TargetAirborneKey.IsSet())
 	{

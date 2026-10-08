@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 
 class AActor;
+class APawn;
 class APungCharacter;
 class UBehaviorTreeComponent;
 class UPungBotProfile;
@@ -36,4 +37,10 @@ namespace PungBot
 
 	/** 아레나 중심: 스폰 지점들의 평균. 스폰 지점이 없으면 원점. */
 	FVector GetArenaCenter(const UWorld* World);
+
+	/**
+	 *  서버 전용. 소리를 봇들에게 알린다 (청각 거리 안의 봇만, 낸 사람 자신은 제외).
+	 *  bRevealsInstigator 가 true 면 소리 낸 사람의 위치까지 알게 된다 (총소리). false 면 소리 난 자리만 (폭발음).
+	 */
+	void ReportNoise(UWorld* World, const FVector& Location, APawn* Instigator, bool bRevealsInstigator);
 }

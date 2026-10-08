@@ -9,6 +9,7 @@
 /**
  *  나를 노리는 적을 알아챈다. 상대의 조준선이 나(몸 또는 발밑)와 ThreatAimAngle 안이고,
  *  나와 서로 보이며, 탄이 남아 있으면 "나를 노린다" 로 본다.
+ *  상대가 내 시야각(ThreatSightHalfAngle) 밖이면 근접 감지 거리 안이거나 그 사람의 총소리를 들었을 때만.
  *  같은 상대가 ThreatReactionTime 이상 계속 노려야 알아챈다 (사람의 반응 시간).
  *  알아챈 상대는 컨트롤러(GetCurrentThreat)에도 적어서 EQS 컨텍스트 Pung Threat 와 Pung Find Target 의 반격 가산점이 쓴다.
  *  수치는 봇 프로필(UPungBotProfile) Threat 항목.

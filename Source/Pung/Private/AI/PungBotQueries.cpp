@@ -84,4 +84,28 @@ namespace PungBot
 		}
 		return Count > 0 ? Sum / Count : FVector::ZeroVector;
 	}
+
+	void ReportNoise(UWorld* World, const FVector& Location, APawn* Instigator, bool bRevealsInstigator)
+	{
+		if (!World || World->GetNetMode() == NM_Client)
+		{
+			return;
+		}
+
+		for (TActorIterator<APungAIController> It(World); It; ++It)
+		{
+			APungAIController* Bot = *It;
+			const APawn* Listener = Bot->GetPawn();
+			if (!Listener || Listener == Instigator)
+			{
+				continue;
+			}
+
+			const float Radius = Bot->GetBotProfile()->HearingRadius;
+			if (Radius > 0.f && FVector::DistSquared(Listener->GetActorLocation(), Location) <= FMath::Square(Radius))
+			{
+				Bot->HearNoise(Location, bRevealsInstigator ? Instigator : nullptr);
+			}
+		}
+	}
 }

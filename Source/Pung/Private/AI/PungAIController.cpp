@@ -24,6 +24,8 @@ void APungAIController::OnPossess(APawn* InPawn)
 
 	CurrentTarget.Reset();
 	CurrentThreat.Reset();
+	KnownEnemies.Reset();
+	LastNoiseTime = -1.0e9;
 
 	// (임시) 등급 구분용 외형
 	if (APungCharacter* PungCharacter = Cast<APungCharacter>(InPawn))
@@ -42,4 +44,57 @@ void APungAIController::OnPossess(APawn* InPawn)
 	}
 
 	RunBehaviorTree(BehaviorTree);
+}
+
+void APungAIController::NoteSeenEnemy(AActor* Enemy)
+{
+	if (Enemy)
+	{
+		FKnownEnemy& Known = KnownEnemies.FindOrAdd(Enemy);
+		Known.Location = Enemy->GetActorLocation();
+		Known.LastKnownTime = GetWorld()->GetTimeSeconds();
+	}
+}
+
+void APungAIController::HearNoise(const FVector& Location, AActor* Source)
+{
+	const double Now = GetWorld()->GetTimeSeconds();
+	LastNoiseLocation = Location;
+	LastNoiseTime = Now;
+
+	if (Source)
+	{
+		FKnownEnemy& Known = KnownEnemies.FindOrAdd(Source);
+		Known.Location = Source->GetActorLocation();
+		Known.LastKnownTime = Now;
+		Known.LastHeardTime = Now;
+	}
+}
+
+bool APungAIController::WasHeardRecently(const AActor* Source, float MaxAge) const
+{
+	const FKnownEnemy* Known = KnownEnemies.Find(const_cast<AActor*>(Source));
+	return Known && GetWorld()->GetTimeSeconds() - Known->LastHeardTime <= MaxAge;
+}
+
+bool APungAIController::GetRecentNoise(float MaxAge, FVector& OutLocation) const
+{
+	if (GetWorld()->GetTimeSeconds() - LastNoiseTime > MaxAge)
+	{
+		return false;
+	}
+	OutLocation = LastNoiseLocation;
+	return true;
+}
+
+void APungAIController::GetKnownEnemyLocations(float MaxAge, TArray<FVector>& OutLocations) const
+{
+	const double Now = GetWorld()->GetTimeSeconds();
+	for (const TPair<TWeakObjectPtr<AActor>, FKnownEnemy>& Pair : KnownEnemies)
+	{
+		if (Pair.Key.IsValid() && Now - Pair.Value.LastKnownTime <= MaxAge)
+		{
+			OutLocations.Add(Pair.Value.Location);
+		}
+	}
 }

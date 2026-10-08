@@ -39,6 +39,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Target", meta=(ClampMin="0", Units="s"))
 	float TargetMemoryTime = 2.f;
 
+	/**
+	 *  알아챈(보거나 들은) 적의 마지막 위치를 이 시간 동안 기억한다.
+	 *  EQS 컨텍스트 Pung Enemies 는 이 기억만 쓴다 (벽 너머 적의 지금 위치를 알지 못하게).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Target", meta=(ClampMin="0", Units="s"))
+	float KnownEnemyMemoryTime = 5.f;
+
 	/** 무적인 상대는 노리지 않는다 (어차피 탄이 통과한다) */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Target")
 	bool bIgnoreInvulnerableTargets = true;
@@ -147,6 +154,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Threat", meta=(ClampMin="0", ClampMax="45", Units="deg"))
 	float ThreatAimAngle = 6.f;
 
+	/** 위협 감지: 이 각도(정면 좌우) 안의 상대만 알아챈다. 등 뒤의 조준은 근접 감지 거리 안이거나 소리를 들었을 때만. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Threat", meta=(ClampMin="0", ClampMax="180", Units="deg"))
+	float ThreatSightHalfAngle = 90.f;
+
 	/** 위협 감지: 이 거리 안의 상대만 본다 (공기총 사거리보다 멀면 의미 없음) */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Threat", meta=(ClampMin="0", Units="cm"))
 	float ThreatRange = 2500.f;
@@ -162,6 +173,17 @@ public:
 	/** 회피: 비켜서면서 점프할 확률. 가장자리 근처에서는 뛰지 않는다 (공중에서 맞으면 더 멀리 날아간다). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Threat", meta=(ClampMin="0", ClampMax="1"))
 	float DodgeJumpChance = 0.3f;
+
+	/**
+	 *  청각: 이 거리 안에서 누가 총을 쏘면 쏜 사람을, 폭발이 나면 그 자리를 알아챈다.
+	 *  쏜 사람은 시야각 밖이어도 대상이 될 수 있고 (보이기는 해야 함), 대상이 없으면 소리 난 쪽을 돌아본다. 0 이면 안 씀.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Hearing", meta=(ClampMin="0", Units="cm"))
+	float HearingRadius = 1500.f;
+
+	/** 청각: 들은 것을 이 시간 동안 기억한다 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Hearing", meta=(ClampMin="0", Units="s"))
+	float HearingMemoryTime = 1.5f;
 
 	/** 배회: 한 번에 이동할 지점을 찾는 반경 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Roam", meta=(ClampMin="100", Units="cm"))

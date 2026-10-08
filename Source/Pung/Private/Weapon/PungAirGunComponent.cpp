@@ -2,6 +2,7 @@
 
 
 #include "Weapon/PungAirGunComponent.h"
+#include "AI/PungBotQueries.h"
 #include "Character/PungCharacter.h"
 #include "Components/CapsuleComponent.h"
 #include "DrawDebugHelpers.h"
@@ -162,6 +163,10 @@ bool UPungAirGunComponent::Fire(const FVector& ClientEyeLocation, const FVector&
 	const UPungItemComponent* Items = Character->GetItems();
 	ApplyBlast(BurstLocation, Character, Items ? Items->GetOutgoingBlastModifiers() : FPungBlastModifiers());
 
+	// 봇의 청각: 총소리는 쏜 사람을, 폭발음은 그 자리를 알린다
+	PungBot::ReportNoise(GetWorld(), EyeLocation, Character, true);
+	PungBot::ReportNoise(GetWorld(), BurstLocation, Character, false);
+
 	// 연출용 탄은 눈 앞에서 나타나 착탄 지점까지 날아간다
 	const FVector VisualStart = EyeLocation + AimDirection * FMath::Min(MuzzleOffset, BurstDistance * 0.5f);
 	MulticastShotFired(VisualStart, BurstLocation);
@@ -284,6 +289,9 @@ void UPungAirGunComponent::BlastFromServer(const FVector& Origin, const FPungBla
 	if (Character && Character->HasAuthority())
 	{
 		ApplyBlast(Origin, Character, Modifiers);
+
+		// 펄스처럼 내 위치에서 터지는 폭발은 낸 사람이 곧 그 자리다
+		PungBot::ReportNoise(GetWorld(), Origin, Character, true);
 	}
 }
 

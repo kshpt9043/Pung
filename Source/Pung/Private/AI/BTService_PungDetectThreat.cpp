@@ -68,6 +68,8 @@ void UBTService_PungDetectThreat::TickNode(UBehaviorTreeComponent& OwnerComp, ui
 	FDetectThreatMemory* Memory = CastInstanceNodeMemory<FDetectThreatMemory>(NodeMemory);
 	const double Now = Self->GetWorld()->GetTimeSeconds();
 	const float AimCos = FMath::Cos(FMath::DegreesToRadians(Profile->ThreatAimAngle));
+	const float SightCos = FMath::Cos(FMath::DegreesToRadians(Profile->ThreatSightHalfAngle));
+	const FVector ViewForward = Controller->GetControlRotation().Vector().GetSafeNormal2D();
 
 	// 사람은 대개 발밑을 노리므로 몸 중심과 발 둘 다 본다
 	const FVector SelfCenter = Self->GetActorLocation();
@@ -92,6 +94,15 @@ void UBTService_PungDetectThreat::TickNode(UBehaviorTreeComponent& OwnerComp, ui
 
 		const FVector Eye = Other->GetPawnViewLocation();
 		if (FVector::DistSquared(Eye, SelfCenter) > FMath::Square(Profile->ThreatRange) || !Controller->LineOfSightTo(Other))
+		{
+			continue;
+		}
+
+		// 등 뒤의 조준은 알아채지 못한다. 아주 가깝거나 그 사람의 총소리를 들었으면 예외.
+		const FVector ToOther = Other->GetActorLocation() - SelfCenter;
+		const bool bInSight = FVector::DotProduct(ViewForward, ToOther.GetSafeNormal2D()) >= SightCos;
+		const bool bClose = ToOther.SizeSquared() <= FMath::Square(Profile->CloseAwarenessRadius);
+		if (!bInSight && !bClose && !Controller->WasHeardRecently(Other, Profile->HearingMemoryTime))
 		{
 			continue;
 		}
