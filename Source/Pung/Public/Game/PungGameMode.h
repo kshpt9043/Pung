@@ -59,6 +59,13 @@ public:
 	/** 매번 정해진 스폰 지점 중에서 새로 고르도록, 처음 스폰한 지점을 재사용하지 않는다 */
 	virtual bool ShouldSpawnAtStartSpot(AController* Player) override;
 
+	/**
+	 *  살아 있는 다른 플레이어들에게서 가장 먼 스폰 지점을 고른다 (상위 몇 곳 중 랜덤).
+	 *  엔진 기본 방식은 지형과 겹친다고 판정된 지점(패드 위 등)을 "차 있음"으로 보고 그중에서 다시 랜덤으로 골라
+	 *  여러 명이 한 지점에 겹쳐 스폰될 수 있다. 거리로만 고르면 그런 일이 없고, 적 바로 앞 리스폰도 줄어든다.
+	 */
+	virtual AActor* ChoosePlayerStart_Implementation(AController* Player) override;
+
 	/** 스폰할 때마다 리스폰 무적을 건다 */
 	virtual void RestartPlayer(AController* NewPlayer) override;
 
@@ -131,6 +138,10 @@ protected:
 	 */
 	UPROPERTY(EditDefaultsOnly, Category="Bots")
 	TMap<FName, FPungBotTier> BotTiers;
+
+	/** 가장 먼 스폰 지점 상위 몇 곳 중에서 랜덤으로 고를지. 1 이면 항상 가장 먼 곳 (뻔해진다). */
+	UPROPERTY(EditDefaultsOnly, Category="Match", meta=(ClampMin="1"))
+	int32 SpawnRandomTopCount = 2;
 
 	/** 아이템 패드의 기본 아이템 목록 (GDD §3.6) */
 	UPROPERTY(EditDefaultsOnly, Category="Items")

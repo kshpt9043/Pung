@@ -117,6 +117,8 @@
 - [ ] 아이템 패드 배치 (§6 에서 BP 를 만든 뒤)
 - [ ] 맵이 바뀌면 Project Settings → Maps & Modes → Game Default Map / Editor Startup Map 도 바꾸기 (`Run-Standalone.bat` 은 Game Default Map 으로 시작)
 
+- [ ] PlayerStart 는 아이템 패드, 구조물, 가장자리에서 떼어 놓는다 (가장자리에서 5m 이상, 서로 10m 이상). 선택했을 때 **"BAD size"** 가 뜨지 않게
+  - 스폰 지점은 "다른 플레이어에게서 가장 먼 곳" 으로 고르므로, 지점 수가 사람 수보다 많을수록 (예: 6~8개) 잘 흩어진다
 ---
 
 ## 6. 아이템

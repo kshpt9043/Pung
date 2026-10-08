@@ -11,6 +11,8 @@
 #include "Game/PungAutoMatchSubsystem.h"
 #include "Game/PungGameState.h"
 #include "Game/PungTelemetrySubsystem.h"
+#include "GameFramework/PlayerStart.h"
+#include "GameFramework/PlayerStartPIE.h"
 #include "GameFramework/WorldSettings.h"
 #include "HAL/PlatformMisc.h"
 #include "Game/PungMatchSubsystem.h"
@@ -208,6 +210,7 @@ void APungGameMode::ResetPlayersForMatch()
 		}
 	}
 
+	// 먼저 전원의 몸을 지운 뒤 새로 스폰한다. 스폰 지점을 고를 때 지워질 예전 몸과의 거리를 재지 않도록.
 	for (AController* Controller : Controllers)
 	{
 		if (APungPlayerState* State = Controller->GetPlayerState<APungPlayerState>())
@@ -219,6 +222,10 @@ void APungGameMode::ResetPlayersForMatch()
 		{
 			OldPawn->Destroy();
 		}
+	}
+
+	for (AController* Controller : Controllers)
+	{
 		RestartPlayer(Controller);
 	}
 }
@@ -411,6 +418,50 @@ void APungGameMode::RespawnPlayer(TWeakObjectPtr<AController> Controller)
 bool APungGameMode::ShouldSpawnAtStartSpot(AController* Player)
 {
 	return false;
+}
+
+AActor* APungGameMode::ChoosePlayerStart_Implementation(AController* Player)
+{
+	struct FScoredStart
+	{
+		APlayerStart* Start;
+		float Distance;
+	};
+	TArray<FScoredStart, TInlineAllocator<16>> Starts;
+
+	for (TActorIterator<APlayerStart> It(GetWorld()); It; ++It)
+	{
+		// 에디터의 "여기서 플레이" 지점은 엔진 방식 그대로 우선한다
+		if (It->IsA<APlayerStartPIE>())
+		{
+			return *It;
+		}
+
+		// 살아 있는 다른 플레이어 중 가장 가까운 사람까지 거리
+		float Nearest = TNumericLimits<float>::Max();
+		for (TActorIterator<APungCharacter> CharacterIt(GetWorld()); CharacterIt; ++CharacterIt)
+		{
+			if (CharacterIt->GetController() != Player)
+			{
+				Nearest = FMath::Min(Nearest, FVector::Dist(It->GetActorLocation(), CharacterIt->GetActorLocation()));
+			}
+		}
+		Starts.Add({ *It, Nearest });
+	}
+
+	if (Starts.IsEmpty())
+	{
+		return Super::ChoosePlayerStart_Implementation(Player);
+	}
+
+	// 먼 순으로 정렬해서 상위 몇 곳 중 랜덤. 아무도 없으면 (모두 거리 무한) 전부 중 랜덤이 된다.
+	Starts.Sort([](const FScoredStart& A, const FScoredStart& B) { return A.Distance > B.Distance; });
+	int32 Candidates = FMath::Clamp(SpawnRandomTopCount, 1, Starts.Num());
+	while (Candidates < Starts.Num() && Starts[Candidates].Distance == Starts[0].Distance)
+	{
+		++Candidates;
+	}
+	return Starts[FMath::RandRange(0, Candidates - 1)].Start;
 }
 
 void APungGameMode::RestartPlayer(AController* NewPlayer)
