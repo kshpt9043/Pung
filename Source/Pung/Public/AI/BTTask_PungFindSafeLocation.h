@@ -9,6 +9,8 @@
 /**
  *  낭떠러지에서 멀어지는 안전한 지점을 NavMesh 위에서 찾아 블랙보드에 적는다.
  *  바닥이 없는 쪽의 반대 방향 지점과 주변 랜덤 지점들 중, 주변에 바닥이 가장 많은 곳을 고른다.
+ *  실제로 걸어서 갈 수 있는 지점만 고른다. 가장자리 띠(NavMesh 밖)에 서 있어 갈 곳이 없으면 실패한다
+ *  (BT 에서 Pung Step Away From Edge 로 이어 받는다).
  *  찾은 지점으로의 이동은 기본 Move To 노드로 한다.
  */
 UCLASS(meta=(DisplayName="Pung Find Safe Location"))

@@ -256,6 +256,7 @@
 - [ ] 블랙보드 `BB_PungBot_Smart` (BB_PungBot 복제) 키 추가: `bThreatened` (Bool), `ThreatActor` (Object, Actor), `DodgeLocation` (Vector), `RetreatLocation` (Vector), `ItemLocation` (Vector)
 - [ ] EQS 쿼리 3개: `EQS_Pung_Attack`, `EQS_Pung_Retreat`, `EQS_Pung_Item` (배회는 기존 `Pung Find Roam Location` 재사용)
 - [ ] 비헤이비어 트리 `BT_PungBot_Smart` (블랙보드 = `BB_PungBot_Smart`)
+  - [ ] **낭떠러지 가지 (두 BT 모두):** Sequence 를 Selector 로 바꾸고 `[Sequence: Pung Find Safe Location → Move To]` 다음에 **Pung Step Away From Edge** 를 둔다 (가장자리 띠에 멈춘 봇의 비상구)
   - [ ] 루트 아래 서비스: Pung Find Target, Pung Check Edge, **Pung Detect Threat** (Threatened Key = bThreatened, Threat Key = ThreatActor)
   - [ ] 모든 Run EQS Query 의 Run Mode = Single Best Item, Move To 의 Allow Partial Path 끄기
 - [ ] `BP_PungAIController_Smart` (부모: `PungAIController`) → Behavior Tree = `BT_PungBot_Smart`, Bot Profile = `DA_BotProfile_Smart`

@@ -7,6 +7,7 @@
 #include "BehaviorTree/BlackboardComponent.h"
 #include "BehaviorTree/BlackboardData.h"
 #include "Character/PungCharacter.h"
+#include "NavigationPath.h"
 #include "NavigationSystem.h"
 
 UBTTask_PungFindSafeLocation::UBTTask_PungFindSafeLocation()
@@ -73,27 +74,35 @@ EBTNodeResult::Type UBTTask_PungFindSafeLocation::ExecuteTask(UBehaviorTreeCompo
 	}
 
 	// 주변에 바닥이 가장 많은 곳. 같으면 바닥이 없는 쪽에서 가장 멀어지는 곳.
-	int32 BestGround = -1;
-	float BestDistanceSquared = TNumericLimits<float>::Max();
-	FVector Best = FVector::ZeroVector;
+	struct FScoredCandidate
+	{
+		FVector Location;
+		int32 Ground;
+		float DistanceSquared;
+	};
+	TArray<FScoredCandidate, TInlineAllocator<33>> Scored;
 	for (const FVector& Candidate : Candidates)
 	{
 		FVector Unused;
 		const int32 Ground = PungBot::CountGroundAround(World, Candidate, Profile->EdgeCheckDistance, Profile->GroundProbeDepth, Self, Unused);
-		const float DistanceSquared = FVector::DistSquared(Candidate, AwayPoint);
-		if (Ground > BestGround || (Ground == BestGround && DistanceSquared < BestDistanceSquared))
+		Scored.Add({ Candidate, Ground, static_cast<float>(FVector::DistSquared(Candidate, AwayPoint)) });
+	}
+	Scored.Sort([](const FScoredCandidate& A, const FScoredCandidate& B)
+	{
+		return A.Ground != B.Ground ? A.Ground > B.Ground : A.DistanceSquared < B.DistanceSquared;
+	});
+
+	// 좋은 순으로, 실제로 걸어서 끝까지 갈 수 있는 첫 자리. 가장자리 띠(NavMesh 밖)에 서 있으면 모두 실패할 수 있고,
+	// 그때는 실패를 돌려줘서 BT 가 Pung Step Away From Edge 로 직접 걸어 나오게 한다.
+	for (const FScoredCandidate& Candidate : Scored)
+	{
+		const UNavigationPath* Path = UNavigationSystemV1::FindPathToLocationSynchronously(const_cast<UWorld*>(World), Feet, Candidate.Location, const_cast<APungCharacter*>(Self));
+		if (Path && Path->IsValid() && !Path->IsPartial())
 		{
-			BestGround = Ground;
-			BestDistanceSquared = DistanceSquared;
-			Best = Candidate;
+			Blackboard->SetValueAsVector(LocationKey.SelectedKeyName, Candidate.Location);
+			return EBTNodeResult::Succeeded;
 		}
 	}
 
-	if (BestGround < 0)
-	{
-		return EBTNodeResult::Failed;
-	}
-
-	Blackboard->SetValueAsVector(LocationKey.SelectedKeyName, Best);
-	return EBTNodeResult::Succeeded;
+	return EBTNodeResult::Failed;
 }
