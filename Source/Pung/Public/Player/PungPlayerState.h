@@ -21,8 +21,29 @@ public:
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
+	/** 서버 전용. Count 만큼 킬(점수)을 더한다. 현상금 보너스도 킬로 친다. */
+	void AddKill(int32 Count = 1);
+
+	/** 서버 전용. 연속 킬을 하나 늘리고 늘어난 값을 돌려준다 */
+	int32 AddStreak();
+
+	/** 서버 전용. 죽으면 연속 킬과 현상금이 사라진다 */
+	void ResetStreak();
+
 	/** 서버 전용 */
-	void AddKill();
+	void SetBounty(bool bNewBounty);
+
+	/** 죽지 않고 이어 간 킬 수 (매치 진행 중만 센다) */
+	UFUNCTION(BlueprintPure, Category="Pung")
+	int32 GetKillStreak() const { return KillStreak; }
+
+	/** 현상금이 걸려 있는지. 이 사람을 떨어뜨리면 보너스 점수. */
+	UFUNCTION(BlueprintPure, Category="Pung")
+	bool HasBounty() const { return bHasBounty; }
+
+	/** 서버 전용 (복수 판정). 나를 마지막으로 떨어뜨린 사람 */
+	APlayerState* GetLastKilledBy() const { return LastKilledBy.Get(); }
+	void SetLastKilledBy(APlayerState* Killer) { LastKilledBy = Killer; }
 
 	/** 서버 전용 */
 	void AddDeath();
@@ -72,4 +93,12 @@ protected:
 
 	UPROPERTY(ReplicatedUsing=OnRep_Stats)
 	int32 Deaths = 0;
+
+	UPROPERTY(ReplicatedUsing=OnRep_Stats)
+	int32 KillStreak = 0;
+
+	UPROPERTY(ReplicatedUsing=OnRep_Stats)
+	bool bHasBounty = false;
+
+	TWeakObjectPtr<APlayerState> LastKilledBy;
 };

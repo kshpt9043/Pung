@@ -9,12 +9,19 @@
 #include "Item/PungItemData.h"
 #include "Player/PungPlayerState.h"
 
-void UPungKillFeedEntryWidget::Setup(const APlayerState* Killer, const APlayerState* Victim, bool bInvolvesMe)
+void UPungKillFeedEntryWidget::Setup(const APlayerState* Killer, const APlayerState* Victim, bool bInvolvesMe, const FPungKillInfo& Info)
 {
 	const FString VictimName = Victim ? Victim->GetPlayerName() : FString(TEXT("?"));
-	const FString Message = Killer
+	FString Message = Killer
 		? FString::Printf(TEXT("%s  →  %s"), *Killer->GetPlayerName(), *VictimName)
 		: FString::Printf(TEXT("%s 추락"), *VictimName);
+
+	// 킬 태그: "공중 · 3연타 · 현상금 +1" 등
+	const FString Tags = Killer ? Info.GetTagsText() : FString();
+	if (!Tags.IsEmpty())
+	{
+		Message += TEXT("   ") + Tags;
+	}
 
 	MessageText->SetText(FText::FromString(Message));
 	if (bInvolvesMe)

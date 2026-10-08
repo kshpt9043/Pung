@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "Game/PungKillTypes.h"
 #include "PungAirGunComponent.generated.h"
 
 class APungAirProjectile;
@@ -35,6 +36,10 @@ struct FPungBlastModifiers
 	/** false 면 폭발이 쏜 사람 자신은 밀지 않는다 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool bPushSelf = true;
+
+	/** 킬 태그에 쓸 폭발 출처 (펄스 등) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	EPungHitSource Source = EPungHitSource::Gun;
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FPungAirGunFiredSignature);

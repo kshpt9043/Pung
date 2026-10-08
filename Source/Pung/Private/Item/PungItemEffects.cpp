@@ -40,6 +40,7 @@ bool UPungItemEffect_Pulse::OnUsed(APungCharacter* Character) const
 	Modifiers.OtherStrengthScale = StrengthScale;
 	Modifiers.OtherRadiusScale = RadiusScale;
 	Modifiers.bPushSelf = false;
+	Modifiers.Source = EPungHitSource::Pulse;
 
 	Character->GetAirGun()->BlastFromServer(Character->GetActorLocation(), Modifiers);
 	return true;

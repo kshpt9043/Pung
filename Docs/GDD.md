@@ -165,6 +165,21 @@
 
 ---
 
+### 5.5 킬 태그, 연속 킬, 현상금
+- **킬 태그 (스타일):** 킬 피드 문장 뒤에 어떻게 떨어뜨렸는지 붙인다. 예: `A  →  B   공중 · 3연타`
+  | 태그 | 조건 |
+  |---|---|
+  | 공중 | 마지막으로 맞을 때 상대가 공중에 떠 있었다 |
+  | N연타 | 킬 유효 시간 안에 같은 사람에게 3번 이상 맞았다 |
+  | 구조물 / 펄스 | 마지막으로 밀린 것이 날아온 구조물 / 펄스 |
+  | 자폭 유도 | 상대가 마지막에 자기 폭발로 떨어졌는데, 킬러가 민 직후라 킬러의 것이 됐다 |
+  | 복수 | 나를 마지막으로 떨어뜨린 사람을 떨어뜨렸다 |
+  | 현상금 +1 | 현상금이 걸린 사람을 떨어뜨렸다 |
+  | N연속 / N연속! 현상금 | 킬러의 연속 킬 (2 이상), 현상금이 막 걸렸을 때 |
+- **연속 킬:** 죽지 않고 이어 간 킬 수. 매치 진행 중만 센다. 죽으면 0.
+- **현상금:** 3연속 킬이면 현상금이 걸린다. 그 사람을 떨어뜨리면 **킬 +1 보너스** (점수 = 킬 수라 킬로 친다). 죽으면 사라진다. 1등 견제 장치.
+- 판정은 서버. 킬 피드는 `OnPlayerFellDetailed` 의 킬 내용(`FPungKillInfo`)으로 C++ 이 문장을 만든다. 기록 CSV(falls) 에도 태그와 연속 킬이 남는다.
+
 ## 6. 매치
 
 | 항목 | 내용 |
@@ -400,6 +415,9 @@
 | 킬 유효 시간 | 5 s | 3~8초 범위에서 테스트 |
 | 리스폰 대기 | 3 s | |
 | 리스폰 무적 | 3 s | 총을 쏘면 즉시 해제 |
+| 현상금 연속 킬 | 3 | 0 이면 현상금 없음 (`BountyStreak`) |
+| 현상금 보너스 | 킬 +1 | (`BountyBonusKills`) |
+| 연타 태그 | 3번 이상 | (`ComboHitCount`) |
 | 스폰 지점 랜덤 후보 | 상위 2곳 | 다른 플레이어에게서 먼 순. 1 이면 항상 가장 먼 곳 (`SpawnRandomTopCount`) |
 | 결과 화면 시간 | 10 s | 이후 자동으로 새 매치 |
 | 자동 시작 인원 | 2 명 | 사람(봇 제외). 0 이면 자동 시작 없음 |
@@ -485,7 +503,8 @@
 | `UPungSessionSubsystem` | Steam 세션: 방 만들기/검색/참가/나가기/초대, 연결 실패 정리, 참가 타임아웃. 결과는 델리게이트로 알림 (나중에 UMG 가 바인딩) |
 | `APungGameMode` | 서버 전용 규칙: 매치 시작/종료, 낙사 시 킬 판정, 리스폰 (다른 플레이어에게서 먼 스폰 지점, 무적), 봇 추가/제거 |
 | `APungGameState` | 모두가 공유하는 매치 상태: 단계, 남은 시간, 우승자, 킬 알림 이벤트 |
-| `APungPlayerState` | 플레이어별 킬/사망 수, 봇 여부 |
+| `APungPlayerState` | 플레이어별 킬/사망 수, 연속 킬, 현상금, 봇 여부 |
+| `FPungKillInfo` / `EPungHitSource` | 킬 내용 (태그, 연속 킬, 현상금)과 무엇에 밀렸는지 (§5.5) |
 | `APungAIController` | 봇 컨트롤러. 지정된 BT 실행만 함. PlayerState 를 가짐. 등급 이름, 지금 대상/위협 (EQS 컨텍스트용) 보관 |
 | `UPungBotProfile` | 봇 난이도 수치 데이터 에셋 |
 | `UPungBotSubsystem` | 넣은 봇 등급 목록 기억 (매치 재시작 후 복원) |
@@ -506,7 +525,8 @@ UI 는 UserWidget(UMG) 으로 만든다. C++ 는 아래 값과 이벤트만 제�
 | 매치 남은 시간 | `APungGameState` | `GetRemainingTime()` |
 | 매치 단계, 결과 | `APungGameState` | `OnMatchPhaseChanged`, `GetMatchPhase()`, `GetWinners()` |
 | 점수판 | `APungGameState` | `GetSortedPlayers()` (킬↓, 사망↑, 이름), `OnScoreboardChanged` |
-| 킬 피드 | `APungGameState` | `OnPlayerFell(Killer, Victim)` (Killer 가 null 이면 자멸) |
+| 킬 피드 | `APungGameState` | `OnPlayerFell(Killer, Victim)` (Killer 가 null 이면 자멸), `OnPlayerFellDetailed(Killer, Victim, 킬 내용)` (태그, 연속 킬, 현상금) |
+| 연속 킬, 현상금 | `APungPlayerState` | `GetKillStreak()`, `HasBounty()` (점수판에 현상금 표시 등) |
 | 플레이어 기록 | `APungPlayerState` | `GetKills()`, `GetDeaths()`, `IsBot()`, `OnStatsChanged` |
 | 리스폰 카운트다운 | `APungPlayerState` | `IsWaitingToRespawn()`, `GetRespawnTimeRemaining()` |
 | 충전 수 | `UPungAirGunComponent` | `GetCharges()`, `GetMaxCharges()`, `OnChargesChanged` |
@@ -551,6 +571,7 @@ UI 는 UserWidget(UMG) 으로 만든다. C++ 는 아래 값과 이벤트만 제�
 
 | 날짜 | 결정 |
 |---|---|
+| 2026-10-08 | 킬 태그(공중, 연타, 구조물, 펄스, 자폭 유도, 복수), 연속 킬, 현상금(3연속, 킬 +1) 도입. 킬 피드 문장에 태그를 붙이는 방식이라 UI 작업 없음 |
 | 2026-10-08 | 아이템 패드 임시 외형 (엔진 기본 도형). 메시가 없어 사람만 아이템을 못 보던 상태 해소 |
 | 2026-10-08 | 봇 감각: 청각 추가 (총소리로 쏜 사람, 폭발음으로 자리 알아챔, 소리 난 쪽 돌아보기). Smart 의 반칙 제거 (위협 감지에 시야각, 후퇴 쿼리는 알아챈 적의 마지막 위치만) |
 | 2026-10-08 | 벽을 걷은 아레나 (바닥 ×4) 에서 너무 쉽게 죽음 (한 번 죽기까지 피격 3.6~4.1, 한 방 킬 56%) → 남 세기 배율 0.82 → 0.7. 결과 피격 5.3, 한 목숨 평균 20초, 판당 킬은 벽 있을 때와 같음. 구조물 날아가는 배율은 같은 비율로 올림 |

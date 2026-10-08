@@ -365,31 +365,65 @@ void APungGameMode::HandleCharacterFell(APungCharacter* Victim)
 
 	APungPlayerState* KillerState = Killer ? Killer->GetPlayerState<APungPlayerState>() : nullptr;
 
-	// 점수는 매치 중에만. 킬 피드와 관전은 대기(자유 연습)에서도 보여 준다.
+	// 킬 내용 (GDD §5.5): 어떻게 떨어뜨렸는지. 대기(자유 연습) 중에도 킬 피드에 보여 준다.
+	FPungKillInfo Info;
+	Info.ComboThreshold = ComboHitCount;
+	if (Killer)
+	{
+		Info.Hits = Victim->CountRecentHitsBy(Killer, KillCreditWindow);
+		Info.bAirborne = Victim->WasLastHitAirborne();
+		Info.Source = Victim->GetLastHitSource();
+		Info.bSelfBlastFinish = Victim->WasLastKnockbackSelf();
+		Info.bRevenge = KillerState && VictimState && KillerState->GetLastKilledBy() == VictimState;
+	}
+
+	// 점수, 연속 킬, 현상금은 매치 중에만
 	if (bInProgress)
 	{
 		if (KillerState)
 		{
-			KillerState->AddKill();
+			// 현상금이 걸린 상대를 떨어뜨리면 보너스 점수
+			Info.bBountyClaimed = VictimState && VictimState->HasBounty();
+			KillerState->AddKill(1 + (Info.bBountyClaimed ? BountyBonusKills : 0));
+
+			Info.KillerStreak = KillerState->AddStreak();
+			if (BountyStreak > 0 && Info.KillerStreak >= BountyStreak && !KillerState->HasBounty())
+			{
+				KillerState->SetBounty(true);
+				Info.bBountyPlaced = true;
+			}
 		}
 		if (VictimState)
 		{
 			VictimState->AddDeath();
+			VictimState->ResetStreak();
 		}
 	}
+
+	// 복수 기록: 이번에 갚았으면 지우고, 떨어진 사람은 킬러를 기억한다
+	if (KillerState && Info.bRevenge)
+	{
+		KillerState->SetLastKilledBy(nullptr);
+	}
+	if (VictimState)
+	{
+		VictimState->SetLastKilledBy(KillerState);
+	}
+
 	if (PungGameState->GetMatchPhase() != EPungMatchPhase::Ended)
 	{
-		GetGameState<APungGameState>()->MulticastPlayerFell(KillerState, VictimState);
+		GetGameState<APungGameState>()->MulticastPlayerFell(KillerState, VictimState, Info);
 	}
 
 	if (UPungTelemetrySubsystem* Telemetry = GetGameInstance()->GetSubsystem<UPungTelemetrySubsystem>())
 	{
-		Telemetry->RecordFall(Victim, Killer, Killer ? Victim->CountRecentHitsBy(Killer, KillCreditWindow) : 0);
+		Telemetry->RecordFall(Victim, Killer, Info);
 	}
 
-	UE_LOG(LogPung, Log, TEXT("[낙사] %s ← %s"),
+	UE_LOG(LogPung, Log, TEXT("[낙사] %s ← %s %s"),
 		VictimState ? *VictimState->GetPlayerName() : TEXT("알 수 없음"),
-		KillerState ? *KillerState->GetPlayerName() : TEXT("자멸"));
+		KillerState ? *KillerState->GetPlayerName() : TEXT("자멸"),
+		*Info.GetTagsText());
 
 	// 매치가 끝난 뒤에는 리스폰하지 않는다 (대기 중 자유 연습에서는 리스폰한다)
 	if (VictimController && PungGameState->GetMatchPhase() != EPungMatchPhase::Ended)

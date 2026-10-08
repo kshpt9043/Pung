@@ -8,6 +8,7 @@
 #include "Character/PungCharacter.h"
 #include "Engine/World.h"
 #include "Game/PungGameState.h"
+#include "Game/PungKillTypes.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerState.h"
@@ -140,7 +141,7 @@ void UPungTelemetrySubsystem::RecordKnockback(const APungCharacter* Victim, cons
 		Line);
 }
 
-void UPungTelemetrySubsystem::RecordFall(const APungCharacter* Victim, const AController* Killer, int32 KillerHits)
+void UPungTelemetrySubsystem::RecordFall(const APungCharacter* Victim, const AController* Killer, const FPungKillInfo& Info)
 {
 	const UWorld* World = Victim ? Victim->GetWorld() : nullptr;
 	if (!ShouldRecord(World))
@@ -151,17 +152,18 @@ void UPungTelemetrySubsystem::RecordFall(const APungCharacter* Victim, const ACo
 	const AController* VictimController = Victim->GetController();
 	const double Now = World->GetTimeSeconds();
 
-	const FString Line = FString::Printf(TEXT("%d,%.2f,%s,%s,%s,%s,%d,%s,%.2f,%.2f"),
+	const FString Line = FString::Printf(TEXT("%d,%.2f,%s,%s,%s,%s,%d,%s,%.2f,%.2f,%s,%d"),
 		MatchIndex, GetMatchTime(World),
 		*GetPlayerName(VictimController), *GetTierName(VictimController),
 		*GetPlayerName(Killer), *GetTierName(Killer),
-		KillerHits,
+		Info.Hits,
 		*FormatVector(Victim->GetLastHitLocation()),
 		Victim->GetLastAttackTime() > 0.0 ? Now - Victim->GetLastAttackTime() : -1.0,
-		Now - Victim->GetSpawnTime());
+		Now - Victim->GetSpawnTime(),
+		*Info.GetTagsCsv(), Info.KillerStreak);
 
 	Append(TEXT("falls.csv"),
-		TEXT("match,time,victim,victim_tier,killer,killer_tier,killer_hits,last_hit_x,last_hit_y,last_hit_z,since_last_hit,lifetime"),
+		TEXT("match,time,victim,victim_tier,killer,killer_tier,killer_hits,last_hit_x,last_hit_y,last_hit_z,since_last_hit,lifetime,tags,killer_streak"),
 		Line);
 }
 

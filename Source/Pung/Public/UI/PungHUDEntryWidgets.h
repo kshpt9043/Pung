@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "Game/PungKillTypes.h"
 #include "PungHUDEntryWidgets.generated.h"
 
 class APlayerState;
@@ -22,12 +23,12 @@ class PUNG_API UPungKillFeedEntryWidget : public UUserWidget
 
 public:
 
-	/** Killer 가 null 이면 자멸. bInvolvesMe 면 강조 색. */
-	void Setup(const APlayerState* Killer, const APlayerState* Victim, bool bInvolvesMe);
+	/** Killer 가 null 이면 자멸. bInvolvesMe 면 강조 색. Info 의 태그(공중, 3연타 등)를 문장 뒤에 붙인다. */
+	void Setup(const APlayerState* Killer, const APlayerState* Victim, bool bInvolvesMe, const FPungKillInfo& Info);
 
 protected:
 
-	/** "A → B" 또는 "B 추락" */
+	/** "A → B   공중 · 3연타" 또는 "B 추락" */
 	UPROPERTY(meta=(BindWidget)) TObjectPtr<UTextBlock> MessageText;
 
 	/** 내가 관련된 줄의 글자 색 */

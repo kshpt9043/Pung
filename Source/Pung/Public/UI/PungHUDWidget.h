@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "Game/PungKillTypes.h"
 #include "Game/PungGameState.h"
 #include "PungHUDWidget.generated.h"
 
@@ -253,7 +254,7 @@ private:
 	void HandleItemsChanged();
 
 	UFUNCTION()
-	void HandlePlayerFell(APlayerState* Killer, APlayerState* Victim);
+	void HandlePlayerFell(APlayerState* Killer, APlayerState* Victim, const FPungKillInfo& Info);
 
 	UFUNCTION()
 	void HandleMatchPhaseChanged(EPungMatchPhase NewPhase);
@@ -273,7 +274,7 @@ private:
 	void RebuildItems();
 
 	/** 킬 피드 한 줄을 추가한다 */
-	void AddKillFeedLine(APlayerState* Killer, APlayerState* Victim);
+	void AddKillFeedLine(APlayerState* Killer, APlayerState* Victim, const FPungKillInfo& Info);
 
 	/** 점수판을 보여야 하는지 (Tab 또는 매치 종료) 에 맞춰 보이고, 보일 때는 내용을 다시 그린다 */
 	void RefreshScoreboard();

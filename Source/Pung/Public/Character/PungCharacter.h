@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "Game/PungKillTypes.h"
 #include "PungCharacter.generated.h"
 
 class UCameraComponent;
@@ -154,7 +155,7 @@ public:
 	bool CanAct() const;
 
 	/** 서버 전용. 현재 속도에 넉백을 더하고, 누가 밀었는지 기록한다. */
-	void ApplyKnockback(const FVector& Knockback, AController* InstigatorController);
+	void ApplyKnockback(const FVector& Knockback, AController* InstigatorController, EPungHitSource Source = EPungHitSource::Gun);
 
 	/** 서버 전용. 무적을 Duration 초 동안 켜거나 (0 이면 끌 때까지 유지), 끈다. */
 	void SetInvulnerable(bool bNewInvulnerable, float Duration = 0.f);
@@ -172,6 +173,13 @@ public:
 	/** 서버 전용. 이 캐릭터를 마지막으로 민 컨트롤러와 그 시각 (월드 시간, 초) */
 	AController* GetLastAttacker() const { return LastAttacker.Get(); }
 	double GetLastAttackTime() const { return LastAttackTime; }
+
+	/** 서버 전용 (킬 태그용). 남에게 마지막으로 밀린 것이 무엇이었는지, 그때 공중이었는지 */
+	EPungHitSource GetLastHitSource() const { return LastHitSource; }
+	bool WasLastHitAirborne() const { return bLastHitWhileAirborne; }
+
+	/** 서버 전용 (킬 태그용). 가장 최근 넉백이 자기 폭발이었는지 */
+	bool WasLastKnockbackSelf() const { return bLastKnockbackWasSelf; }
 
 	/** 서버 전용 (기록용). 남에게 마지막으로 밀렸을 때 내 위치 */
 	FVector GetLastHitLocation() const { return LastHitLocation; }
@@ -265,6 +273,10 @@ protected:
 	double LastAttackTime = -1.0e9;
 
 	FVector LastHitLocation = FVector::ZeroVector;
+
+	EPungHitSource LastHitSource = EPungHitSource::Gun;
+	bool bLastHitWhileAirborne = false;
+	bool bLastKnockbackWasSelf = false;
 
 	/** 남에게 밀린 기록 (누가, 언제). 오래된 것은 지운다. */
 	TArray<TPair<TWeakObjectPtr<AController>, double>> RecentHits;

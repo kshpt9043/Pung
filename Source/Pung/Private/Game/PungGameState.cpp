@@ -110,7 +110,7 @@ void APungGameState::SetWinners(const TArray<APlayerState*>& NewWinners)
 	Winners.Append(NewWinners);
 }
 
-void APungGameState::MulticastPlayerFell_Implementation(APlayerState* Killer, APlayerState* Victim)
+void APungGameState::MulticastPlayerFell_Implementation(APlayerState* Killer, APlayerState* Victim, const FPungKillInfo& Info)
 {
 	// 떨어진 사람이 이 머신의 플레이어면 관전을 시작한다
 	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
@@ -122,6 +122,7 @@ void APungGameState::MulticastPlayerFell_Implementation(APlayerState* Killer, AP
 	}
 
 	OnPlayerFell.Broadcast(Killer, Victim);
+	OnPlayerFellDetailed.Broadcast(Killer, Victim, Info);
 }
 
 void APungGameState::OnRep_MatchPhase()

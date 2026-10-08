@@ -220,7 +220,7 @@ void APungCharacter::DoUseItem()
 	}
 }
 
-void APungCharacter::ApplyKnockback(const FVector& Knockback, AController* InstigatorController)
+void APungCharacter::ApplyKnockback(const FVector& Knockback, AController* InstigatorController, EPungHitSource Source)
 {
 	if (!HasAuthority() || bInvulnerable)
 	{
@@ -239,9 +239,12 @@ void APungCharacter::ApplyKnockback(const FVector& Knockback, AController* Insti
 		LastAttackTime = Now;
 	}
 
-	// 기록용: 남에게 밀린 위치와 횟수
+	// 기록, 킬 태그용: 남에게 밀린 위치, 횟수, 무엇에 밀렸는지, 그때 공중이었는지 (넉백을 적용하기 전 상태)
+	bLastKnockbackWasSelf = bSelf;
 	if (InstigatorController && !bSelf)
 	{
+		LastHitSource = Source;
+		bLastHitWhileAirborne = GetCharacterMovement()->IsFalling();
 		LastHitLocation = GetActorLocation();
 		RecentHits.RemoveAll([Now](const TPair<TWeakObjectPtr<AController>, double>& Hit) { return Now - Hit.Value > 10.0; });
 		RecentHits.Emplace(TWeakObjectPtr<AController>(InstigatorController), Now);

@@ -364,7 +364,7 @@ void UPungAirGunComponent::ApplyBlast(const FVector& Origin, APungCharacter* Sho
 		}
 
 		const FVector Knockback = Direction * Strength;
-		Character->ApplyKnockback(Knockback, ShooterController);
+		Character->ApplyKnockback(Knockback, ShooterController, Modifiers.Source);
 
 		if (CVarPungDebugBlast.GetValueOnGameThread())
 		{

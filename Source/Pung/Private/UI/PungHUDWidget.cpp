@@ -46,7 +46,7 @@ void UPungHUDWidget::NativeDestruct()
 	if (APungGameState* GameState = BoundGameState.Get())
 	{
 		GameState->OnMatchPhaseChanged.RemoveDynamic(this, &UPungHUDWidget::HandleMatchPhaseChanged);
-		GameState->OnPlayerFell.RemoveDynamic(this, &UPungHUDWidget::HandlePlayerFell);
+		GameState->OnPlayerFellDetailed.RemoveDynamic(this, &UPungHUDWidget::HandlePlayerFell);
 		GameState->OnScoreboardChanged.RemoveDynamic(this, &UPungHUDWidget::HandleScoreboardChanged);
 	}
 	BoundGameState.Reset();
@@ -213,7 +213,7 @@ void UPungHUDWidget::RebuildItems()
 	}
 }
 
-void UPungHUDWidget::AddKillFeedLine(APlayerState* Killer, APlayerState* Victim)
+void UPungHUDWidget::AddKillFeedLine(APlayerState* Killer, APlayerState* Victim, const FPungKillInfo& Info)
 {
 	if (!KillFeedEntryClass)
 	{
@@ -227,7 +227,7 @@ void UPungHUDWidget::AddKillFeedLine(APlayerState* Killer, APlayerState* Victim)
 		return;
 	}
 
-	Line->Setup(Killer, Victim, IsLocalPlayer(Killer) || IsLocalPlayer(Victim));
+	Line->Setup(Killer, Victim, IsLocalPlayer(Killer) || IsLocalPlayer(Victim), Info);
 	KillFeedBox->AddChildToVerticalBox(Line);
 
 	FKillFeedLine& Added = KillFeedLines.AddDefaulted_GetRef();
@@ -321,7 +321,7 @@ void UPungHUDWidget::TryBindGameState()
 
 	BoundGameState = GameState;
 	GameState->OnMatchPhaseChanged.AddDynamic(this, &UPungHUDWidget::HandleMatchPhaseChanged);
-	GameState->OnPlayerFell.AddDynamic(this, &UPungHUDWidget::HandlePlayerFell);
+	GameState->OnPlayerFellDetailed.AddDynamic(this, &UPungHUDWidget::HandlePlayerFell);
 	GameState->OnScoreboardChanged.AddDynamic(this, &UPungHUDWidget::HandleScoreboardChanged);
 
 	// 지금 상태로 한 번 그려 준다
@@ -499,9 +499,9 @@ void UPungHUDWidget::HandleItemsChanged()
 	BP_OnItemsChanged();
 }
 
-void UPungHUDWidget::HandlePlayerFell(APlayerState* Killer, APlayerState* Victim)
+void UPungHUDWidget::HandlePlayerFell(APlayerState* Killer, APlayerState* Victim, const FPungKillInfo& Info)
 {
-	AddKillFeedLine(Killer, Victim);
+	AddKillFeedLine(Killer, Victim, Info);
 	BP_OnKillFeed(Killer, Victim);
 }
 

@@ -14,14 +14,36 @@ void APungPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	DOREPLIFETIME(APungPlayerState, Kills);
 	DOREPLIFETIME(APungPlayerState, Deaths);
 	DOREPLIFETIME(APungPlayerState, RespawnServerTime);
+	DOREPLIFETIME(APungPlayerState, KillStreak);
+	DOREPLIFETIME(APungPlayerState, bHasBounty);
 }
 
-void APungPlayerState::AddKill()
+void APungPlayerState::AddKill(int32 Count)
 {
-	++Kills;
+	Kills += Count;
 	SetScore(Kills);
 
 	// 서버에서는 OnRep 이 자동 호출되지 않으므로 리슨 서버 호스트를 위해 직접 호출한다
+	OnRep_Stats();
+}
+
+int32 APungPlayerState::AddStreak()
+{
+	++KillStreak;
+	OnRep_Stats();
+	return KillStreak;
+}
+
+void APungPlayerState::ResetStreak()
+{
+	KillStreak = 0;
+	bHasBounty = false;
+	OnRep_Stats();
+}
+
+void APungPlayerState::SetBounty(bool bNewBounty)
+{
+	bHasBounty = bNewBounty;
 	OnRep_Stats();
 }
 
@@ -29,6 +51,9 @@ void APungPlayerState::ResetStats()
 {
 	Kills = 0;
 	Deaths = 0;
+	KillStreak = 0;
+	bHasBounty = false;
+	LastKilledBy.Reset();
 	SetScore(0);
 	RespawnServerTime = 0.0;
 	OnRep_Stats();

@@ -311,7 +311,7 @@ bool APungProp::TryImpact(APungCharacter* Character, const FVector& Velocity, co
 	const float Strength = FMath::Min(FMath::Max(Speed * Data->ImpactScale, Data->MinImpactKnockback), Data->MaxImpactKnockback);
 
 	// 킬은 구조물을 날린 사람의 것. 내가 날린 구조물에 내가 맞으면 자기 넉백으로 친다.
-	Character->ApplyKnockback(Direction * Strength, LaunchedBy.Get());
+	Character->ApplyKnockback(Direction * Strength, LaunchedBy.Get(), EPungHitSource::Prop);
 
 	Motion.IgnoredActors.AddUnique(Character);
 	StartMotion(EPungPropState::Flying, EPungPropEvent::Impact, Location, Velocity * Data->SpeedAfterImpact, Motion.YawRate * 0.5f);
@@ -402,7 +402,7 @@ void APungProp::ApplyBlast(const FVector& Knockback, AController* InstigatorCont
 			const UCharacterMovementComponent* Movement = Rider->GetCharacterMovement();
 			if (Movement && Movement->GetMovementBase() == Mesh.Get())
 			{
-				Rider->ApplyKnockback(Velocity, InstigatorController);
+				Rider->ApplyKnockback(Velocity, InstigatorController, EPungHitSource::Prop);
 				Motion.IgnoredActors.AddUnique(Rider);
 			}
 		}

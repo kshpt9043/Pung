@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameStateBase.h"
+#include "Game/PungKillTypes.h"
 #include "PungGameState.generated.h"
 
 class APlayerState;
@@ -25,6 +26,7 @@ enum class EPungMatchPhase : uint8
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FPungMatchPhaseChangedSignature, EPungMatchPhase, NewPhase);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FPungPlayerFellSignature, APlayerState*, Killer, APlayerState*, Victim);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FPungKillSignature, APlayerState*, Killer, APlayerState*, Victim, const FPungKillInfo&, Info);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FPungScoreboardChangedSignature);
 
 /**
@@ -91,9 +93,9 @@ public:
 	/** 서버 전용 */
 	void SetWinners(const TArray<APlayerState*>& NewWinners);
 
-	/** 서버 전용. 누군가 떨어졌음을 모든 클라이언트에 알린다 (킬 피드용). Killer 가 null 이면 자멸. */
+	/** 서버 전용. 누군가 떨어졌음을 모든 클라이언트에 알린다 (킬 피드용). Killer 가 null 이면 자멸. Info 는 킬 내용 (태그). */
 	UFUNCTION(NetMulticast, Reliable)
-	void MulticastPlayerFell(APlayerState* Killer, APlayerState* Victim);
+	void MulticastPlayerFell(APlayerState* Killer, APlayerState* Victim, const FPungKillInfo& Info);
 
 	/** 매치 단계가 바뀌었을 때. 모든 머신에서 실행된다. */
 	UPROPERTY(BlueprintAssignable, Category="Pung")
@@ -106,6 +108,10 @@ public:
 	/** 누군가 떨어졌을 때 (킬 피드용). Killer 가 null 이면 자멸. 모든 머신에서 실행된다. */
 	UPROPERTY(BlueprintAssignable, Category="Pung")
 	FPungPlayerFellSignature OnPlayerFell;
+
+	/** OnPlayerFell 과 같지만 킬 내용(공중, 연타, 구조물, 복수, 현상금, 연속 킬)까지 준다. 모든 머신에서 실행된다. */
+	UPROPERTY(BlueprintAssignable, Category="Pung")
+	FPungKillSignature OnPlayerFellDetailed;
 
 protected:
 

@@ -35,8 +35,8 @@ public:
 	/** 넉백을 받았을 때 (자기 폭발 포함). Knockback 은 받는 넉백 배율까지 적용된 값. */
 	void RecordKnockback(const APungCharacter* Victim, const AController* Attacker, const FVector& Knockback);
 
-	/** 떨어졌을 때. Killer 가 없으면 자멸. */
-	void RecordFall(const APungCharacter* Victim, const AController* Killer, int32 KillerHits);
+	/** 떨어졌을 때. Killer 가 없으면 자멸. Info 는 킬 내용 (태그, 연속 킬). */
+	void RecordFall(const APungCharacter* Victim, const AController* Killer, const struct FPungKillInfo& Info);
 
 	/** 아이템을 주웠거나 썼을 때 */
 	void RecordItem(const APungCharacter* Character, const UPungItemData* Item, const TCHAR* Event);

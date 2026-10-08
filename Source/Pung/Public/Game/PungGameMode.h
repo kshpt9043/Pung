@@ -179,6 +179,18 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category="Match", meta=(ClampMin="0", Units="s"))
 	float SpawnInvulnerabilityDuration = 3.f;
 
+	/** 죽지 않고 이만큼 연속 킬하면 현상금이 걸린다. 0 이면 현상금 없음. */
+	UPROPERTY(EditDefaultsOnly, Category="Match", meta=(ClampMin="0"))
+	int32 BountyStreak = 3;
+
+	/** 현상금이 걸린 사람을 떨어뜨리면 더 받는 점수 (킬로 친다) */
+	UPROPERTY(EditDefaultsOnly, Category="Match", meta=(ClampMin="0"))
+	int32 BountyBonusKills = 1;
+
+	/** 킬 유효 시간 안에 같은 사람에게 이만큼 이상 맞고 떨어지면 킬 피드에 "N연타" */
+	UPROPERTY(EditDefaultsOnly, Category="Match", meta=(ClampMin="2"))
+	int32 ComboHitCount = 3;
+
 	/** 마지막으로 민 뒤 이 시간 안에 떨어져야 킬로 인정된다. 지나면 자멸 처리. */
 	UPROPERTY(EditDefaultsOnly, Category="Match", meta=(ClampMin="0", Units="s"))
 	float KillCreditWindow = 5.f;
