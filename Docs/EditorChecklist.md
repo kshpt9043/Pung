@@ -135,7 +135,10 @@
   - [ ] 각 에셋에 Display Name, Description, Icon (텍스처), Color 도 채우기 (HUD, 패드 표식용)
   - [ ] **Effect 를 반드시 고를 것.** 비어 있으면 주워도 아무 효과가 없다
 - [ ] `BP_PungGameMode` → Items → **Default Item Pool** 에 4개 넣기
-- [ ] `BP_PungItemPad` 만들기 (부모: `PungItemPad`). C++ 패드는 범위(구)만 있고 **안 보인다**
+- [ ] `BP_PungItemPad` 만들기 (부모: `PungItemPad`). C++ 에 **임시 외형**(발판 + 아이템 색 상자 + 이름)이 기본으로 켜져 있다
+  - 패드 액터 위치를 바닥 표면에 맞춘다 (임시 발판이 액터 위치 바로 위에 깔린다). 떠 있으면 BP 에서 Placeholder Base 위치를 조절
+  - 아이템 데이터의 **Color** 가 표식 색이 된다. 4종을 서로 다른 색으로
+  - 진짜 외형을 만들면 디테일 → Item Pad → Placeholder → **Use Placeholder Visual 끄기**
   - [ ] 발판 메시 (원작: 캐릭터 지름 정도의 원판)
   - [ ] **On Item Changed (Item)** → 패드 위에 다음 아이템 표식 (Item 의 Icon/Color 사용). Item 이 None 이면 숨기기
   - [ ] **On Ready Changed (bNewReady)** → 비었을 때 표식 흐리게/숨기기, 찼을 때 보이기

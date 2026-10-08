@@ -9,6 +9,9 @@
 class APungCharacter;
 class UPungItemData;
 class USphereComponent;
+class UStaticMeshComponent;
+class UTextRenderComponent;
+class UMaterialInstanceDynamic;
 
 /**
  *  아이템 패드 (GDD §3.6, 원작 방식).
@@ -25,6 +28,18 @@ class PUNG_API APungItemPad : public AActor
 	/** 줍는 범위 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta=(AllowPrivateAccess="true"))
 	TObjectPtr<USphereComponent> Trigger;
+
+	/** (임시 외형) 발판. 엔진 기본 원기둥. 충돌 없음. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta=(AllowPrivateAccess="true"))
+	TObjectPtr<UStaticMeshComponent> PlaceholderBase;
+
+	/** (임시 외형) 아이템 표식. 아이템 Color 로 칠하고 돈다. 비었으면 숨긴다. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta=(AllowPrivateAccess="true"))
+	TObjectPtr<UStaticMeshComponent> PlaceholderMarker;
+
+	/** (임시 외형) 아이템 이름과 다시 차기까지 남은 초. 내 카메라 쪽을 본다. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta=(AllowPrivateAccess="true"))
+	TObjectPtr<UTextRenderComponent> PlaceholderLabel;
 
 public:
 
@@ -47,7 +62,12 @@ public:
 protected:
 
 	virtual void BeginPlay() override;
+	virtual void OnConstruction(const FTransform& Transform) override;
+	virtual void Tick(float DeltaSeconds) override;
 	virtual void NotifyActorBeginOverlap(AActor* OtherActor) override;
+
+	/** (임시 외형) 지금 아이템과 상태에 맞게 표식, 색, 글자를 바꾼다 */
+	void UpdatePlaceholder();
 
 	/** 서버: 이 캐릭터에게 아이템을 준다. 줄 수 없으면 아무 일도 없다. */
 	void TryGiveTo(APungCharacter* Character);
@@ -87,6 +107,17 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Item Pad")
 	TObjectPtr<UPungItemData> FixedItem;
 
+	/**
+	 *  엔진 기본 도형으로 만든 임시 외형을 쓸지 (발판 + 아이템 색 표식 + 이름).
+	 *  BP 에서 진짜 외형을 만들면 끈다. 꺼도 On Item Changed 등 BP 훅은 그대로 불린다.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Item Pad|Placeholder")
+	bool bUsePlaceholderVisual = true;
+
+	/** 임시 표식이 도는 속도 */
+	UPROPERTY(EditAnywhere, Category="Item Pad|Placeholder", meta=(Units="deg"))
+	float PlaceholderSpinSpeed = 90.f;
+
 	/** 주운 뒤 다시 차는 시간 */
 	UPROPERTY(EditAnywhere, Category="Item Pad", meta=(ClampMin="0", Units="s"))
 	float RespawnTime = 20.f;
@@ -102,4 +133,10 @@ protected:
 	double ReadyServerTime = 0.0;
 
 	FTimerHandle RespawnTimer;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> MarkerMaterial;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> BaseMaterial;
 };

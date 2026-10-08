@@ -3,13 +3,28 @@
 
 #include "Item/PungItemPad.h"
 #include "Character/PungCharacter.h"
+#include "Camera/PlayerCameraManager.h"
 #include "Components/SphereComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Components/TextRenderComponent.h"
+#include "Engine/StaticMesh.h"
+#include "GameFramework/PlayerController.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialInterface.h"
+#include "UObject/ConstructorHelpers.h"
 #include "Game/PungGameMode.h"
 #include "Item/PungItemComponent.h"
 #include "Item/PungItemData.h"
 #include "Net/UnrealNetwork.h"
 #include "Pung.h"
 #include "TimerManager.h"
+
+namespace
+{
+	/** 비어 있을 때 발판 색, 찼을 때 발판 색 */
+	const FLinearColor PlaceholderBaseEmptyColor(0.05f, 0.05f, 0.05f);
+	const FLinearColor PlaceholderBaseReadyColor(0.25f, 0.25f, 0.25f);
+}
 
 APungItemPad::APungItemPad()
 {
@@ -26,6 +41,55 @@ APungItemPad::APungItemPad()
 	bReplicates = true;
 	// 패드는 몇 개 안 되고 어디서든 표식이 보여야 하므로 항상 복제한다
 	bAlwaysRelevant = true;
+
+	// 임시 외형: 표식 회전과 이름 방향 맞추기에만 틱을 쓴다 (BeginPlay 에서 켠다)
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = false;
+
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> CylinderMesh(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> ShapeMaterial(TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
+
+	// 임시 외형은 보이기만 한다. 충돌이 있으면 스폰 지점 판정이나 이동에 끼어든다.
+	auto SetupPlaceholderMesh = [&](UStaticMeshComponent* Component, UStaticMesh* StaticMesh)
+	{
+		Component->SetupAttachment(Trigger);
+		Component->SetStaticMesh(StaticMesh);
+		Component->SetMaterial(0, ShapeMaterial.Object);
+		Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Component->SetGenerateOverlapEvents(false);
+		Component->SetCanEverAffectNavigation(false);
+		Component->CastShadow = false;
+	};
+
+	// 발판: 지름 140cm, 두께 5cm. 액터 위치가 바닥 표면이라고 보고 그 위에 깐다.
+	PlaceholderBase = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Placeholder Base"));
+	SetupPlaceholderMesh(PlaceholderBase, CylinderMesh.Object);
+	PlaceholderBase->SetRelativeLocation(FVector(0.f, 0.f, 2.5f));
+	PlaceholderBase->SetRelativeScale3D(FVector(1.4f, 1.4f, 0.05f));
+
+	// 표식: 35cm 상자가 눈높이 아래쯤 떠서 돈다
+	PlaceholderMarker = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Placeholder Marker"));
+	SetupPlaceholderMesh(PlaceholderMarker, CubeMesh.Object);
+	PlaceholderMarker->SetRelativeLocation(FVector(0.f, 0.f, 80.f));
+	PlaceholderMarker->SetRelativeRotation(FRotator(45.f, 0.f, 45.f));
+	PlaceholderMarker->SetRelativeScale3D(FVector(0.35f));
+
+	PlaceholderLabel = CreateDefaultSubobject<UTextRenderComponent>(TEXT("Placeholder Label"));
+	PlaceholderLabel->SetupAttachment(Trigger);
+	PlaceholderLabel->SetRelativeLocation(FVector(0.f, 0.f, 135.f));
+	PlaceholderLabel->SetHorizontalAlignment(EHTA_Center);
+	PlaceholderLabel->SetVerticalAlignment(EVRTA_TextCenter);
+	PlaceholderLabel->SetWorldSize(24.f);
+	PlaceholderLabel->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+}
+
+void APungItemPad::OnConstruction(const FTransform& Transform)
+{
+	Super::OnConstruction(Transform);
+
+	// 에디터에서 끄고 켤 때 바로 보이게
+	UpdatePlaceholder();
 }
 
 void APungItemPad::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -40,6 +104,9 @@ void APungItemPad::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 void APungItemPad::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// 화면이 있는 머신에서만 표식을 돌린다
+	SetActorTickEnabled(bUsePlaceholderVisual && GetNetMode() != NM_DedicatedServer);
 
 	if (HasAuthority())
 	{
@@ -149,10 +216,80 @@ void APungItemPad::MulticastPickedUp_Implementation(APungCharacter* Character, U
 
 void APungItemPad::OnRep_CurrentItem()
 {
+	UpdatePlaceholder();
 	BP_OnItemChanged(CurrentItem);
 }
 
 void APungItemPad::OnRep_Ready()
 {
+	UpdatePlaceholder();
 	BP_OnReadyChanged(bReady);
+}
+
+void APungItemPad::UpdatePlaceholder()
+{
+	PlaceholderBase->SetVisibility(bUsePlaceholderVisual);
+	PlaceholderMarker->SetVisibility(bUsePlaceholderVisual && bReady && CurrentItem);
+	PlaceholderLabel->SetVisibility(bUsePlaceholderVisual && CurrentItem);
+	if (!bUsePlaceholderVisual)
+	{
+		return;
+	}
+
+	if (!BaseMaterial)
+	{
+		BaseMaterial = PlaceholderBase->CreateDynamicMaterialInstance(0);
+	}
+	if (!MarkerMaterial)
+	{
+		MarkerMaterial = PlaceholderMarker->CreateDynamicMaterialInstance(0);
+	}
+
+	// 엔진 기본 도형 머티리얼(BasicShapeMaterial)의 색 파라미터
+	static const FName PlaceholderColorParameter(TEXT("Color"));
+	const FLinearColor ItemColor = CurrentItem ? CurrentItem->Color : FLinearColor::White;
+	if (BaseMaterial)
+	{
+		BaseMaterial->SetVectorParameterValue(PlaceholderColorParameter, bReady ? PlaceholderBaseReadyColor : PlaceholderBaseEmptyColor);
+	}
+	if (MarkerMaterial)
+	{
+		MarkerMaterial->SetVectorParameterValue(PlaceholderColorParameter, ItemColor);
+	}
+	PlaceholderLabel->SetTextRenderColor(ItemColor.ToFColor(true));
+}
+
+void APungItemPad::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	if (!bUsePlaceholderVisual)
+	{
+		return;
+	}
+
+	PlaceholderMarker->AddLocalRotation(FRotator(0.f, PlaceholderSpinSpeed * DeltaSeconds, 0.f));
+
+	// 이름: 에셋 이름에서 DA_Item_ 을 뗀 것 (기본 글꼴에 한글이 없어서 표시 이름 대신 쓴다). 비었으면 남은 초.
+	if (CurrentItem)
+	{
+		FString Label = CurrentItem->GetName();
+		Label.RemoveFromStart(TEXT("DA_Item_"));
+		if (!bReady)
+		{
+			const float Remaining = static_cast<float>(ReadyServerTime - PungTime::GetServerTime(GetWorld()));
+			Label += FString::Printf(TEXT(" (%d)"), FMath::Max(0, FMath::CeilToInt(Remaining)));
+		}
+		PlaceholderLabel->SetText(FText::FromString(Label));
+	}
+
+	// 글자가 내 카메라를 보게 한다 (수평 방향만)
+	if (const APlayerController* LocalController = GetWorld()->GetFirstPlayerController())
+	{
+		if (LocalController->PlayerCameraManager)
+		{
+			const FVector ToCamera = LocalController->PlayerCameraManager->GetCameraLocation() - PlaceholderLabel->GetComponentLocation();
+			PlaceholderLabel->SetWorldRotation(FRotator(0.f, ToCamera.Rotation().Yaw, 0.f));
+		}
+	}
 }
