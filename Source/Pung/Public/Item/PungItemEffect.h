@@ -39,4 +39,11 @@ public:
 
 	/** 사용형: 사용 키를 눌렀을 때. 실제로 썼으면 true (횟수가 줄어든다). */
 	virtual bool OnUsed(APungCharacter* Character) const { return false; }
+
+	/**
+	 *  (임시 외형) 지속형이 켜져 있는 동안 캐릭터 발밑에 아이템 색 원판을 보여 줄지.
+	 *  상대가 왜 덜 밀리는지 등 눈으로 알아야 하는 효과에 켠다. 진짜 이펙트는 나중에 BP 로.
+	 */
+	UPROPERTY(EditAnywhere, Category="Placeholder")
+	bool bShowPlaceholderDisc = false;
 };

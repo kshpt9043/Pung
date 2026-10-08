@@ -6,6 +6,11 @@
 #include "Character/PungCharacterMovementComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
+#include "Item/PungItemData.h"
+#include "Item/PungItemEffect.h"
+#include "UObject/ConstructorHelpers.h"
 #include "EnhancedInputComponent.h"
 #include "Game/PungGameMode.h"
 #include "Game/PungGameState.h"
@@ -65,6 +70,21 @@ APungCharacter::APungCharacter(const FObjectInitializer& ObjectInitializer)
 	AirGun = CreateDefaultSubobject<UPungAirGunComponent>(TEXT("Air Gun"));
 	Items = CreateDefaultSubobject<UPungItemComponent>(TEXT("Items"));
 
+	// 발밑 원판: 지름 160cm, 두께 2cm. 캡슐 바닥 바로 위. 엔진 기본 도형과 머티리얼.
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> DiscMesh(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> DiscMaterial(TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
+	ItemDisc = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Item Disc"));
+	ItemDisc->SetupAttachment(GetCapsuleComponent());
+	ItemDisc->SetStaticMesh(DiscMesh.Object);
+	ItemDisc->SetMaterial(0, DiscMaterial.Object);
+	ItemDisc->SetRelativeLocation(FVector(0.f, 0.f, -96.f + 2.f));
+	ItemDisc->SetRelativeScale3D(FVector(1.6f, 1.6f, 0.02f));
+	ItemDisc->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	ItemDisc->SetGenerateOverlapEvents(false);
+	ItemDisc->SetCanEverAffectNavigation(false);
+	ItemDisc->CastShadow = false;
+	ItemDisc->SetHiddenInGame(true);
+
 	// GDD §10 초기값. 밀려난 플레이어가 공중에서 감속되지 않고 날아가도록 공중 감속을 끈다.
 	UCharacterMovementComponent* Movement = GetCharacterMovement();
 	Movement->AirControl = 0.3f;
@@ -106,6 +126,10 @@ void APungCharacter::BeginPlay()
 	Super::BeginPlay();
 
 	SpawnTime = GetWorld()->GetTimeSeconds();
+
+	// 켜진 아이템이 바뀔 때마다 발밑 원판을 갱신한다 (아이템 상태는 모두에게 복제된다)
+	Items->OnItemsChanged.AddDynamic(this, &APungCharacter::RefreshItemDisc);
+	RefreshItemDisc();
 
 	// 매치가 이미 끝난 뒤 생성됐으면 바로 멈춘다. 게임 상태가 아직 없으면 나중에 게임 상태가 알려준다.
 	if (const APungGameState* PungGameState = GetWorld()->GetGameState<APungGameState>())
@@ -515,6 +539,35 @@ float APungCharacter::GetInvulnerabilityTimeRemaining() const
 void APungCharacter::OnRep_Invulnerable()
 {
 	BP_OnInvulnerabilityChanged(bInvulnerable);
+}
+
+void APungCharacter::RefreshItemDisc()
+{
+	// 원판을 보여 줄 효과가 켜져 있으면 그 아이템 색으로 (여럿이면 처음 것)
+	const UPungItemData* Shown = nullptr;
+	for (const FPungActiveItem& Active : Items->GetActiveItems())
+	{
+		if (Active.Item && Active.Item->Effect && Active.Item->Effect->bShowPlaceholderDisc)
+		{
+			Shown = Active.Item;
+			break;
+		}
+	}
+
+	ItemDisc->SetHiddenInGame(Shown == nullptr);
+	if (!Shown)
+	{
+		return;
+	}
+
+	if (!ItemDiscMaterial)
+	{
+		ItemDiscMaterial = ItemDisc->CreateDynamicMaterialInstance(0);
+	}
+	if (ItemDiscMaterial)
+	{
+		ItemDiscMaterial->SetVectorParameterValue(TEXT("Color"), Shown->Color);
+	}
 }
 
 void APungCharacter::SetBodyLook(const FPungBodyLook& NewLook)

@@ -41,6 +41,9 @@ class PUNG_API UPungItemEffect_Anchor : public UPungItemEffect
 
 public:
 
+	/** 덜 밀리는 이유가 보이도록 발밑 원판을 기본으로 켠다 */
+	UPungItemEffect_Anchor() { bShowPlaceholderDisc = true; }
+
 	virtual float GetIncomingKnockbackScale(bool bSelf) const override;
 
 	/** 남에게 받는 넉백 배율 */

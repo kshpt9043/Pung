@@ -10,6 +10,8 @@
 class UCameraComponent;
 class UInputAction;
 class UMaterialInterface;
+class UMaterialInstanceDynamic;
+class UStaticMeshComponent;
 class UPungAirGunComponent;
 class UPungItemComponent;
 struct FInputActionValue;
@@ -67,6 +69,10 @@ class PUNG_API APungCharacter : public ACharacter
 	/** 주운 아이템 (GDD §3.6) */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta=(AllowPrivateAccess="true"))
 	TObjectPtr<UPungItemComponent> Items;
+
+	/** (임시 외형) 닻처럼 눈에 보여야 하는 지속형 아이템이 켜져 있으면 발밑에 보이는 아이템 색 원판. 충돌 없음. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta=(AllowPrivateAccess="true"))
+	TObjectPtr<UStaticMeshComponent> ItemDisc;
 
 protected:
 
@@ -243,6 +249,13 @@ protected:
 
 	/** 몸 메시에 BodyLook 을 적용한다 */
 	void ApplyBodyLook();
+
+	/** 켜진 아이템이 바뀌었을 때 발밑 원판을 보이거나 숨긴다. 모든 머신에서 실행된다. */
+	UFUNCTION()
+	void RefreshItemDisc();
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> ItemDiscMaterial;
 
 	/** 연출용 훅: (임시) 몸 외형이 정해졌을 때. 모든 머신에서 실행된다. 머티리얼 대신 BP 에서 직접 꾸밀 때 쓴다. */
 	UFUNCTION(BlueprintImplementableEvent, Category="Pung", meta=(DisplayName="On Body Look Changed"))
