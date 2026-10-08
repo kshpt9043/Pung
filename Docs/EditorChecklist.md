@@ -148,6 +148,33 @@
   - [ ] 닻: 거의 안 밀림, 로켓 점프도 약해짐
   - [ ] 과충전: 남을 더 멀리 날림, 로켓 점프는 그대로
 
+## 6.1 구조물 (날릴 수 있는 물체)
+
+- [ ] 데이터 에셋 (Data Asset → `PungPropData`)
+
+  | 에셋 이름 (제안) | Launch Scale | Impact Scale | 나머지 |
+  |---|---|---|---|
+  | `DA_Prop_Crate` (가벼운 상자) | 1.3 | 0.6 | 기본값 |
+  | `DA_Prop_Barrel` (무거운 통) | 0.6 | 1.2 | 기본값 |
+
+- [ ] `BP_PungProp_Crate` 만들기 (부모: `PungProp`)
+  - [ ] Mesh → Static Mesh = 상자 메시 (예: 엔진 `Cube`, 스케일 1~1.2). **Simple Collision 이 있는 메시**여야 한다
+  - [ ] Prop → **Prop Data** = `DA_Prop_Crate`
+  - [ ] 충돌 프리셋은 C++ 기본값(BlockAllDynamic) 그대로
+  - [ ] (선택) **On Prop Event (Event, Speed)** → Launched: 쿵 소리, Bounced: Speed 에 비례한 충돌음, Impact: 맞힘 이펙트, Gone/Respawned: 사라짐/나타남 이펙트
+- [ ] `BP_PungProp_Barrel` 도 같은 방식 (원기둥 메시, `DA_Prop_Barrel`)
+- [ ] 맵에 몇 개 배치 (가장자리 근처, 엄폐물 자리, 겹쳐 쌓기도 가능)
+- [ ] 봇이 구조물을 피해 다니게: 구조물 BP 의 Mesh → Navigation → **Is Dynamic Obstacle = 켬**, 프로젝트 설정 → Navigation Mesh → **Runtime Generation = Dynamic Modifiers Only**
+  - 안 하면 봇이 구조물이 있던/없는 자리를 잘못 알아 부딪히거나 돌아간다 (기능에는 지장 없음)
+- [ ] 확인
+  - [ ] 상자를 쏘면 날아가고, 날아가는 상자가 봇을 맞히면 봇이 밀린다 → 떨어지면 내 킬 (킬 피드)
+  - [ ] 내가 날린 상자에 내가 맞아도 밀림
+  - [ ] 날아가는 상자를 한 번 더 쏘면 방향이 꺾임
+  - [ ] 상자 위에 올라서기 → 누가 그 상자를 쏘면 같이 날아감
+  - [ ] 아레나 밖으로 떨어진 상자가 5초 뒤 원래 자리에 다시 생김
+  - [ ] **클라이언트 화면에서도 상자가 매끄럽게 날아가는지** (PIE 클라이언트 2명, 넷 모드 Play As Client)
+  - [ ] `pung.Debug.Blast 1` → 구조물에 준 넉백이 주황 화살표로 보임
+
 ---
 
 ## 7. 봇
@@ -254,7 +281,7 @@
 
 | 명령 | 용도 |
 |---|---|
-| `pung.Debug.Blast 1` | 조준선(흰), 자기 폭발 반경(노랑), 남 폭발 반경(청록), 넉백 방향, 벽에 막힌 대상(회색). **탄이 안 보일 때도 판정 확인 가능** |
+| `pung.Debug.Blast 1` | 조준선(흰), 자기 폭발 반경(노랑), 남 폭발 반경(청록), 넉백 방향 (구조물은 주황), 벽에 막힌 대상(회색). **탄이 안 보일 때도 판정 확인 가능** |
 | `pung.Knockback.ClientApply 0/1` | 넉백을 본인 화면에서도 바로 적용할지 (끊김 비교) |
 | `pung.Telemetry 1` | 플레이 기록 CSV 를 `Saved/Telemetry` 에 남김 (호스트, 매치 진행 중만) |
 | `pung.Debug.Trajectory 1` | 점프, 로켓 점프, 넉백 뒤 비행 궤적과 "시간, 최고 높이, 수평 거리" 표시. 넉백 튜닝과 맵 치수 측정용 |

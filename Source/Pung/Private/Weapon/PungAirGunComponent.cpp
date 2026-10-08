@@ -9,6 +9,7 @@
 #include "Item/PungItemComponent.h"
 #include "EngineUtils.h"
 #include "Net/UnrealNetwork.h"
+#include "Prop/PungProp.h"
 #include "Pung.h"
 #include "TimerManager.h"
 #include "Weapon/PungAirGunData.h"
@@ -360,6 +361,59 @@ void UPungAirGunComponent::ApplyBlast(const FVector& Origin, APungCharacter* Sho
 		if (CVarPungDebugBlast.GetValueOnGameThread())
 		{
 			DrawDebugDirectionalArrow(World, Center, Center + Knockback * 0.2f, 40.f, bSelf ? FColor::Yellow : FColor::Red, false, 2.f, 0, 3.f);
+		}
+	}
+
+	// 구조물도 남을 칠 때와 같은 반경, 세기로 민다 (구조물 배율은 구조물이 곱한다. GDD §3.7)
+	TArray<FOverlapResult> PropOverlaps;
+	World->OverlapMultiByObjectType(PropOverlaps, Origin, FQuat::Identity, FCollisionObjectQueryParams(ECC_WorldDynamic), FCollisionShape::MakeSphere(OtherRadius), Params);
+
+	TSet<APungProp*> PushedProps;
+	const float OtherCenterStrength = Data->KnockbackStrength * Data->OtherKnockbackScale * Modifiers.OtherStrengthScale;
+	for (const FOverlapResult& Overlap : PropOverlaps)
+	{
+		APungProp* Prop = Cast<APungProp>(Overlap.GetActor());
+		if (!Prop || PushedProps.Contains(Prop) || !Prop->CanBePushed())
+		{
+			continue;
+		}
+		PushedProps.Add(Prop);
+
+		const float SurfaceDistance = Prop->GetDistanceToSurface(Origin);
+		if (SurfaceDistance >= OtherRadius)
+		{
+			continue;
+		}
+
+		// 벽 너머는 밀지 않는다
+		const FVector PropCenter = Prop->GetCenter();
+		FCollisionQueryParams SightParams(SCENE_QUERY_STAT(PungAirBlastPropSight), false, Prop);
+		SightParams.AddIgnoredActor(Shooter);
+		FCollisionObjectQueryParams SightObjects;
+		SightObjects.AddObjectTypesToQuery(ECC_WorldStatic);
+		SightObjects.AddObjectTypesToQuery(ECC_WorldDynamic);
+		if (World->LineTraceTestByObjectType(Origin, PropCenter, SightObjects, SightParams))
+		{
+			if (CVarPungDebugBlast.GetValueOnGameThread())
+			{
+				DrawDebugLine(World, Origin, PropCenter, FColor::Silver, false, 2.f, 0, 1.f);
+			}
+			continue;
+		}
+
+		const float Alpha = SurfaceDistance / OtherRadius;
+		const float Strength = FMath::Lerp(OtherCenterStrength, OtherCenterStrength * Data->EdgeStrengthScale, Alpha);
+		FVector Direction = (PropCenter - Origin).GetSafeNormal();
+		if (Direction.IsNearlyZero())
+		{
+			Direction = FVector::UpVector;
+		}
+
+		Prop->ApplyBlast(Direction * Strength, ShooterController);
+
+		if (CVarPungDebugBlast.GetValueOnGameThread())
+		{
+			DrawDebugDirectionalArrow(World, PropCenter, PropCenter + Direction * Strength * 0.2f, 40.f, FColor::Orange, false, 2.f, 0, 3.f);
 		}
 	}
 
