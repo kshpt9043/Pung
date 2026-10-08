@@ -154,8 +154,8 @@
 
   | 에셋 이름 (제안) | Launch Scale | Impact Scale | 나머지 |
   |---|---|---|---|
-  | `DA_Prop_Crate` (가벼운 상자) | 1.3 | 0.6 | 기본값 |
-  | `DA_Prop_Barrel` (무거운 통) | 0.6 | 1.2 | 기본값 |
+  | `DA_Prop_Crate` (가벼운 상자) | 1.3 | 0.8 | 기본값 |
+  | `DA_Prop_Barrel` (무거운 통) | 0.6 | 1.4 | 기본값 |
 
 - [ ] `BP_PungProp_Crate` 만들기 (부모: `PungProp`)
   - [ ] Mesh → Static Mesh = 상자 메시 (예: 엔진 `Cube`, 스케일 1~1.2). **Simple Collision 이 있는 메시**여야 한다

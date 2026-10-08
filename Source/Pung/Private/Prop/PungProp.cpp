@@ -3,6 +3,7 @@
 
 #include "Prop/PungProp.h"
 #include "Character/PungCharacter.h"
+#include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/CollisionProfile.h"
@@ -25,6 +26,9 @@ namespace
 
 	/** 다시 생길 자리에 사람이 있을 때 재시도 간격 */
 	constexpr float RespawnRetryInterval = 1.f;
+
+	/** 쏜 직후 쏜 사람을 스침 판정에서 빼는 시간 */
+	constexpr double LauncherGraceTime = 0.3;
 
 	/** 느리게 사람에게 떨어졌을 때 미끄러져 내려가도록 옆으로 미는 속도 */
 	constexpr float SlideOffSpeed = 250.f;
@@ -247,7 +251,71 @@ void APungProp::Tick(float DeltaSeconds)
 	if (Hit.bBlockingHit)
 	{
 		HandleServerHit(Hit, Now);
+		return;
 	}
+
+	// 몸에 닿지 않았어도 판정 여유 안을 스치면 맞은 것으로 친다
+	if (APungCharacter* NearMiss = FindNearMissTarget())
+	{
+		TryImpact(NearMiss, EvaluateVelocity(Now), GetActorLocation());
+	}
+}
+
+APungCharacter* APungProp::FindNearMissTarget() const
+{
+	const UPungPropData* Data = GetPropData();
+	if (Data->ImpactRadius <= 0.f)
+	{
+		return nullptr;
+	}
+
+	const APawn* GraceLauncher = PungTime::GetServerTime(GetWorld()) < LauncherGraceEndTime ? LauncherPawn.Get() : nullptr;
+
+	APungCharacter* Best = nullptr;
+	float BestDistance = Data->ImpactRadius;
+	for (TActorIterator<APungCharacter> It(GetWorld()); It; ++It)
+	{
+		APungCharacter* Character = *It;
+		if (Motion.IgnoredActors.Contains(Character) || Character->IsInvulnerable() || Character == GraceLauncher)
+		{
+			continue;
+		}
+
+		// 캡슐 축에서 구조물 표면까지 거리 - 캡슐 반지름
+		const UCapsuleComponent* Capsule = Character->GetCapsuleComponent();
+		const FVector Center = Capsule->GetComponentLocation();
+		const float Radius = Capsule->GetScaledCapsuleRadius();
+		const FVector SegmentOffset(0.f, 0.f, Capsule->GetScaledCapsuleHalfHeight() - Radius);
+		const FVector OnAxis = FMath::ClosestPointOnSegment(GetCenter(), Center - SegmentOffset, Center + SegmentOffset);
+		const float Distance = GetDistanceToSurface(OnAxis) - Radius;
+		if (Distance < BestDistance)
+		{
+			Best = Character;
+			BestDistance = Distance;
+		}
+	}
+	return Best;
+}
+
+bool APungProp::TryImpact(APungCharacter* Character, const FVector& Velocity, const FVector& Location)
+{
+	const UPungPropData* Data = GetPropData();
+	const float Speed = Velocity.Size();
+	if (Speed < Data->MinImpactSpeed || Character->IsInvulnerable())
+	{
+		return false;
+	}
+
+	FVector Direction = Velocity.GetSafeNormal2D();
+	Direction = Direction.IsNearlyZero() ? Velocity.GetSafeNormal() : (Direction + FVector(0.f, 0.f, Data->ImpactUpwardBias)).GetSafeNormal();
+	const float Strength = FMath::Min(FMath::Max(Speed * Data->ImpactScale, Data->MinImpactKnockback), Data->MaxImpactKnockback);
+
+	// 킬은 구조물을 날린 사람의 것. 내가 날린 구조물에 내가 맞으면 자기 넉백으로 친다.
+	Character->ApplyKnockback(Direction * Strength, LaunchedBy.Get());
+
+	Motion.IgnoredActors.AddUnique(Character);
+	StartMotion(EPungPropState::Flying, EPungPropEvent::Impact, Location, Velocity * Data->SpeedAfterImpact, Motion.YawRate * 0.5f);
+	return true;
 }
 
 void APungProp::HandleServerHit(const FHitResult& Hit, double Now)
@@ -266,18 +334,8 @@ void APungProp::HandleServerHit(const FHitResult& Hit, double Now)
 	// 사람에게 부딪힘
 	if (APungCharacter* Character = Cast<APungCharacter>(Hit.GetActor()))
 	{
-		const float Speed = Velocity.Size();
-		if (Speed >= Data->MinImpactSpeed && !Character->IsInvulnerable())
+		if (TryImpact(Character, Velocity, Location))
 		{
-			FVector Direction = Velocity.GetSafeNormal2D();
-			Direction = Direction.IsNearlyZero() ? Velocity.GetSafeNormal() : (Direction + FVector(0.f, 0.f, Data->ImpactUpwardBias)).GetSafeNormal();
-			const float Strength = FMath::Min(Speed * Data->ImpactScale, Data->MaxImpactKnockback);
-
-			// 킬은 구조물을 날린 사람의 것. 내가 날린 구조물에 내가 맞으면 자기 넉백으로 친다.
-			Character->ApplyKnockback(Direction * Strength, LaunchedBy.Get());
-
-			Motion.IgnoredActors.AddUnique(Character);
-			StartMotion(EPungPropState::Flying, EPungPropEvent::Impact, Location, Velocity * Data->SpeedAfterImpact, Motion.YawRate * 0.5f);
 			return;
 		}
 
@@ -303,7 +361,7 @@ void APungProp::HandleServerHit(const FHitResult& Hit, double Now)
 	StartMotion(EPungPropState::Flying, EPungPropEvent::Bounced, Location + Normal * 0.5f, Bounced, Motion.YawRate * (1.f - Data->BounceFriction));
 }
 
-void APungProp::ApplyBlast(const FVector& Knockback, AController* InstigatorController)
+void APungProp::ApplyBlast(const FVector& Knockback, AController* InstigatorController, const FVector& AimDirection)
 {
 	if (!HasAuthority() || !CanBePushed())
 	{
@@ -314,8 +372,19 @@ void APungProp::ApplyBlast(const FVector& Knockback, AController* InstigatorCont
 	const double Now = PungTime::GetServerTime(GetWorld());
 	const bool bWasResting = Motion.State == EPungPropState::Resting;
 
+	// 날아가는 방향을 조준 방향 쪽으로 맞춘다 (세기는 그대로). 노리는 쪽으로 보내기 쉽게.
+	FVector Push = Knockback;
+	if (!AimDirection.IsNearlyZero() && Data->AimInfluence > 0.f)
+	{
+		const FVector Blended = FMath::Lerp(Knockback.GetSafeNormal(), AimDirection.GetSafeNormal(), Data->AimInfluence).GetSafeNormal();
+		if (!Blended.IsNearlyZero())
+		{
+			Push = Blended * Knockback.Size();
+		}
+	}
+
 	// 날아가는 중이면 지금 속도에 더한다 (공중에서 방향을 꺾거나 더 세게 보낼 수 있다)
-	FVector Velocity = EvaluateVelocity(Now) + Knockback * Data->LaunchScale;
+	FVector Velocity = EvaluateVelocity(Now) + Push * Data->LaunchScale;
 	if (bWasResting)
 	{
 		Velocity.Z = FMath::Max(Velocity.Z, Velocity.Size2D() * Data->MinLaunchUpRatio);
@@ -340,6 +409,8 @@ void APungProp::ApplyBlast(const FVector& Knockback, AController* InstigatorCont
 	}
 
 	LaunchedBy = InstigatorController;
+	LauncherPawn = InstigatorController ? InstigatorController->GetPawn() : nullptr;
+	LauncherGraceEndTime = Now + LauncherGraceTime;
 	if (bWasResting)
 	{
 		FlightStartServerTime = Now;

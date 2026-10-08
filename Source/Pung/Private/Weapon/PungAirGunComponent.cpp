@@ -409,7 +409,11 @@ void UPungAirGunComponent::ApplyBlast(const FVector& Origin, APungCharacter* Sho
 			Direction = FVector::UpVector;
 		}
 
-		Prop->ApplyBlast(Direction * Strength, ShooterController);
+		// 쏜 사람 눈 → 폭발 지점 = 조준 방향. 펄스처럼 내 위치에서 터지면 조준 방향이 없다.
+		const FVector EyeToOrigin = Origin - Shooter->GetPawnViewLocation();
+		const FVector AimDirection = EyeToOrigin.SizeSquared() > FMath::Square(100.f) ? EyeToOrigin.GetSafeNormal() : FVector::ZeroVector;
+
+		Prop->ApplyBlast(Direction * Strength, ShooterController, AimDirection);
 
 		if (CVarPungDebugBlast.GetValueOnGameThread())
 		{

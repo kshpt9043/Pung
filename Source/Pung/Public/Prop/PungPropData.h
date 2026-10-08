@@ -23,15 +23,22 @@ public:
 	float LaunchScale = 1.f;
 
 	/**
+	 *  날아가는 방향을 쏜 사람의 조준 방향 쪽으로 이만큼 맞춘다 (0 = 폭발 지점 → 구조물 중심, 1 = 조준 방향 그대로).
+	 *  모서리를 쏴도 "보는 쪽으로" 날아가서 노리기 쉽다. 펄스처럼 내 위치에서 터지는 폭발에는 적용하지 않는다.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Launch", meta=(ClampMin="0", ClampMax="1"))
+	float AimInfluence = 0.7f;
+
+	/**
 	 *  멈춰 있던 구조물이 밀릴 때 위쪽 속도를 수평 속도의 이 비율 이상으로 맞춘다.
-	 *  옆에서 쏴도 살짝 떠올라야 바닥에 끌려 곧바로 서지 않는다.
+	 *  옆에서 쏴도 살짝 떠올라야 바닥에 끌려 곧바로 서지 않는다. 클수록 높은 포물선.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Launch", meta=(ClampMin="0", ClampMax="2"))
-	float MinLaunchUpRatio = 0.3f;
+	float MinLaunchUpRatio = 0.15f;
 
-	/** 중력 배율. 캐릭터(2)와 맞추면 같은 느낌으로 떨어진다. */
+	/** 중력 배율. 작을수록 직선에 가깝게 멀리 날아가 노리기 쉽다 (캐릭터는 2). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Launch", meta=(ClampMin="0"))
-	float GravityScale = 2.f;
+	float GravityScale = 1.2f;
 
 	/** 날아가는 동안 도는 최대 속도 (수평 회전만, 연출용) */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Launch", meta=(ClampMin="0", Units="deg"))
@@ -39,11 +46,22 @@ public:
 
 	/** 구조물 속도 → 맞은 사람 넉백 배율. 무거울수록 크게. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Impact", meta=(ClampMin="0"))
-	float ImpactScale = 0.8f;
+	float ImpactScale = 1.f;
 
 	/** 이 속도 이상으로 부딪혀야 사람을 민다. 굴러오다 멈춘 구조물에 밀리지 않게. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Impact", meta=(ClampMin="0", Units="cm/s"))
 	float MinImpactSpeed = 600.f;
+
+	/**
+	 *  맞힘 판정 여유. 구조물 표면에서 이 거리 안을 스치면 맞은 것으로 친다 (공기총의 근접 신관과 같은 역할).
+	 *  0 이면 실제로 몸에 닿아야 한다.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Impact", meta=(ClampMin="0", Units="cm"))
+	float ImpactRadius = 60.f;
+
+	/** 맞히면 최소 이만큼은 민다 (공기총 직격이 약 1740). 느리게 맞아도 의미 있게. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Impact", meta=(ClampMin="0", Units="cm/s"))
+	float MinImpactKnockback = 1500.f;
 
 	/** 사람에게 주는 넉백 상한 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Impact", meta=(ClampMin="0", Units="cm/s"))

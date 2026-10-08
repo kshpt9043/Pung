@@ -106,8 +106,11 @@ public:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual void Tick(float DeltaSeconds) override;
 
-	/** 서버 전용. 폭발 넉백을 받는다. Knockback 은 남을 칠 때의 넉백 (구조물 배율은 여기서 곱한다). */
-	void ApplyBlast(const FVector& Knockback, AController* InstigatorController);
+	/**
+	 *  서버 전용. 폭발 넉백을 받는다. Knockback 은 남을 칠 때의 넉백 (구조물 배율은 여기서 곱한다).
+	 *  AimDirection 은 쏜 사람의 조준 방향 (없으면 0). 날아가는 방향을 그쪽으로 맞춘다 (AimInfluence).
+	 */
+	void ApplyBlast(const FVector& Knockback, AController* InstigatorController, const FVector& AimDirection = FVector::ZeroVector);
 
 	/** 폭발에 밀릴 수 있는지 (사라진 동안은 안 됨) */
 	bool CanBePushed() const { return Motion.State != EPungPropState::Gone; }
@@ -164,6 +167,12 @@ private:
 	/** 서버: 날아가다 무언가에 막혔을 때 */
 	void HandleServerHit(const FHitResult& Hit, double Now);
 
+	/** 서버: 사람을 맞혔을 때. 넉백을 주고 속도를 잃은 채 통과한다. 밀 만큼 빠르지 않으면 false. */
+	bool TryImpact(APungCharacter* Character, const FVector& Velocity, const FVector& Location);
+
+	/** 서버: 막히지 않았어도 판정 여유(ImpactRadius) 안을 스친 사람 */
+	APungCharacter* FindNearMissTarget() const;
+
 	/** 서버: 멈춰 있는데 아래가 비었으면 다시 떨어진다 (밑에 있던 구조물이 날아간 경우) */
 	void CheckSupport();
 
@@ -180,6 +189,10 @@ private:
 	/** 서버: 이 구조물을 마지막으로 날린 사람과 날아가기 시작한 시각 */
 	TWeakObjectPtr<AController> LaunchedBy;
 	double FlightStartServerTime = 0.0;
+
+	/** 서버: 막 쏜 사람은 이 시각까지 스침 판정에서 뺀다 (코앞에서 쏘자마자 자기가 맞지 않게) */
+	TWeakObjectPtr<APawn> LauncherPawn;
+	double LauncherGraceEndTime = 0.0;
 
 	/** 처음 놓인 자리 */
 	FVector HomeLocation = FVector::ZeroVector;
